@@ -16,21 +16,42 @@ def test_health_endpoint_reports_healthy():
     assert response.json() == {"status": "healthy"}
 
 
-def test_nutrition_endpoint_accepts_valid_request():
+@pytest.mark.parametrize(
+    ("basis", "expected_context"),
+    [
+        (
+            "per_serving",
+            "Percentages represent contribution to the project's daily "
+            "reference from one reported serving.",
+        ),
+        (
+            "per_100g",
+            "Percentages represent contribution to the project's daily "
+            "reference from 100 g of the product.",
+        ),
+    ],
+)
+def test_nutrition_endpoint_accepts_valid_request(basis, expected_context):
     response = client.post(
         "/analyze/nutrition",
         json={
             "sugar_g": 10,
             "sodium_mg": 500,
             "saturated_fat_g": 2,
-            "basis": "per_serving",
+            "basis": basis,
         },
     )
 
     assert response.status_code == 200
-    assert response.json()["basis"] == "per_serving"
-    assert response.json()["sugar_teaspoons"] == 2.5
-    assert response.json()["nutrients"]["sugar"]["level"] == "caution"
+    result = response.json()
+    assert result["basis"] == basis
+    assert result["percentage_context"] == expected_context
+    assert result["sugar_teaspoons"] == 2.5
+    assert result["nutrients"]["sugar"]["percentage_of_daily_limit"] == 20
+    assert result["nutrients"]["sugar"]["level"] == "caution"
+    assert "not official nutritional, health, medical, or regulatory grades" in (
+        result["note"]
+    )
 
 
 def test_nutrition_endpoint_accepts_missing_nutrients():

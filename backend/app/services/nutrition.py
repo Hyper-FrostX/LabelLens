@@ -106,8 +106,20 @@ def analyze_nutrition(
         ),
     }
 
+    percentage_context = {
+        "per_serving": (
+            "Percentages represent contribution to the project's daily "
+            "reference from one reported serving."
+        ),
+        "per_100g": (
+            "Percentages represent contribution to the project's daily "
+            "reference from 100 g of the product."
+        ),
+    }[basis]
+
     return {
         "basis": basis,
+        "percentage_context": percentage_context,
         "nutrients": nutrients,
         "sugar_teaspoons": (
             sugar_to_teaspoons(sugar_g)
@@ -115,7 +127,9 @@ def analyze_nutrition(
             else None
         ),
         "note": (
-            "These are preliminary project-defined thresholds. "
-            "They are not official regulatory grades or medical advice."
+            "Thresholds and good/caution/high bands are preliminary, "
+            "project-defined informational references only. They are not "
+            "official nutritional, health, medical, or regulatory grades, "
+            "and are not medical advice."
         ),
     }
