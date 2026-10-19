@@ -34,6 +34,10 @@ def test_analyze_nutrition_preserves_missing_values():
     result = analyze_nutrition(None, None, None, "per_serving")
 
     assert result["sugar_teaspoons"] is None
+    assert result["percentage_context"] == (
+        "Percentages represent contribution to the project's daily "
+        "reference from one reported serving."
+    )
     assert all(
         nutrient == {
             "value": None,
@@ -41,6 +45,32 @@ def test_analyze_nutrition_preserves_missing_values():
             "level": "unknown",
         }
         for nutrient in result["nutrients"].values()
+    )
+
+
+@pytest.mark.parametrize(
+    ("basis", "expected_context"),
+    [
+        (
+            "per_serving",
+            "Percentages represent contribution to the project's daily "
+            "reference from one reported serving.",
+        ),
+        (
+            "per_100g",
+            "Percentages represent contribution to the project's daily "
+            "reference from 100 g of the product.",
+        ),
+    ],
+)
+def test_analyze_nutrition_describes_percentage_basis(basis, expected_context):
+    result = analyze_nutrition(10, 500, 2, basis)
+
+    assert result["basis"] == basis
+    assert result["percentage_context"] == expected_context
+    assert result["nutrients"]["sugar"]["percentage_of_daily_limit"] == 20
+    assert "not official nutritional, health, medical, or regulatory grades" in (
+        result["note"]
     )
 
 
