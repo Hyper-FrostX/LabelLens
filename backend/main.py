@@ -1,11 +1,17 @@
 import math
 from typing import Literal
 
-from fastapi import FastAPI
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
+from starlette.concurrency import run_in_threadpool
 
+from app.services import label_ocr
+from app.services.label_parser import parse_label_text
 from app.services.nutrition import analyze_nutrition
+
+
+MAX_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024
 
 
 app = FastAPI(
@@ -61,3 +67,35 @@ def nutrition_endpoint(data: NutritionInput):
         saturated_fat_g=data.saturated_fat_g,
         basis=data.basis,
     )
+
+
+@app.post(
+    "/extract/label",
+    description=(
+        "Extract label text and candidate nutrition fields from one local "
+        "image upload. Maximum upload size is 10 MiB."
+    ),
+)
+async def extract_label_endpoint(file: UploadFile = File(...)):
+    image_bytes = await file.read(MAX_IMAGE_UPLOAD_BYTES + 1)
+    if len(image_bytes) > MAX_IMAGE_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail="Image exceeds the 10 MiB upload limit.",
+        )
+
+    try:
+        await run_in_threadpool(label_ocr.validate_image, image_bytes)
+    except label_ocr.UnsupportedImageFormatError as error:
+        raise HTTPException(status_code=415, detail=str(error)) from error
+    except label_ocr.ImageTooLargeError as error:
+        raise HTTPException(status_code=413, detail=str(error)) from error
+    except label_ocr.InvalidImageError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+    try:
+        ocr_text = await run_in_threadpool(label_ocr.extract_text, image_bytes)
+    except label_ocr.OCRServiceError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+
+    return parse_label_text(ocr_text)

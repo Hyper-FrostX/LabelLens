@@ -1,9 +1,12 @@
 import json
+from io import BytesIO
 
 import pytest
 from fastapi.testclient import TestClient
+from PIL import Image
 
-from main import app
+from app.services import label_ocr
+from main import MAX_IMAGE_UPLOAD_BYTES, app
 
 
 client = TestClient(app)
@@ -103,3 +106,129 @@ def test_nutrition_endpoint_rejects_non_finite_values(
     )
 
     assert response.status_code == 422
+
+
+def _png_image_bytes() -> bytes:
+    image_bytes = BytesIO()
+    Image.new("RGB", (2, 2), color="white").save(image_bytes, format="PNG")
+    return image_bytes.getvalue()
+
+
+def test_label_extraction_endpoint_returns_mocked_ocr_results(monkeypatch):
+    ocr_text = "\n".join(
+        [
+            "Product Name: Oat Crunch",
+            "Per Serving",
+            "Serving Size: 30 g",
+            "Total Sugars 8.5 g",
+            "Sodium 120 mg",
+            "Saturated Fat 1.5 g",
+            "Ingredients: oats, spices (cinnamon, nutmeg), honey",
+        ]
+    )
+    monkeypatch.setattr(label_ocr, "extract_text", lambda _: ocr_text)
+
+    response = client.post(
+        "/extract/label",
+        files={"file": ("label.png", _png_image_bytes(), "image/png")},
+    )
+
+    assert response.status_code == 200
+    result = response.json()
+    assert result["product_name"]["value"] == "Oat Crunch"
+    assert result["basis"] == "per_serving"
+    assert result["serving_size_text"] == "30 g"
+    assert result["nutrients"]["sugar_g"] == {
+        "value": 8.5,
+        "source_text": "Total Sugars 8.5 g",
+        "confidence": None,
+        "needs_review": True,
+    }
+    assert result["ingredients"] == [
+        "oats",
+        "spices (cinnamon, nutmeg)",
+        "honey",
+    ]
+    assert result["ocr_text"] == ocr_text
+    assert "sugar_g" in result["review_required_fields"]
+
+
+def test_label_extraction_endpoint_requires_a_file():
+    response = client.post("/extract/label")
+
+    assert response.status_code == 422
+
+
+def test_label_extraction_endpoint_rejects_invalid_image_bytes():
+    response = client.post(
+        "/extract/label",
+        files={"file": ("label.png", b"not an image", "image/png")},
+    )
+
+    assert response.status_code == 400
+
+
+def test_label_extraction_endpoint_rejects_unsupported_actual_format():
+    image_bytes = BytesIO()
+    Image.new("RGB", (2, 2), color="white").save(image_bytes, format="BMP")
+
+    response = client.post(
+        "/extract/label",
+        files={"file": ("label.jpg", image_bytes.getvalue(), "image/jpeg")},
+    )
+
+    assert response.status_code == 415
+
+
+def test_label_extraction_endpoint_rejects_oversized_upload():
+    response = client.post(
+        "/extract/label",
+        files={
+            "file": (
+                "label.png",
+                b"x" * (MAX_IMAGE_UPLOAD_BYTES + 1),
+                "image/png",
+            )
+        },
+    )
+
+    assert response.status_code == 413
+
+
+def test_label_extraction_endpoint_flags_partial_unreadable_data(monkeypatch):
+    monkeypatch.setattr(
+        label_ocr,
+        "extract_text",
+        lambda _: "Nutrition Facts\nIngredients: oats",
+    )
+
+    response = client.post(
+        "/extract/label",
+        files={"file": ("label.png", _png_image_bytes(), "image/png")},
+    )
+
+    assert response.status_code == 200
+    result = response.json()
+    assert result["basis"] is None
+    assert result["serving_size_text"] is None
+    assert result["nutrients"]["sugar_g"]["value"] is None
+    assert result["nutrients"]["sugar_g"]["needs_review"] is True
+    assert "basis" in result["review_required_fields"]
+    assert "serving_size_text" in result["review_required_fields"]
+    assert "sugar_g" in result["review_required_fields"]
+    assert result["ingredients"] == ["oats"]
+
+
+def test_label_extraction_endpoint_reports_unavailable_ocr(monkeypatch):
+    def unavailable_ocr(_):
+        raise label_ocr.OCRServiceError("Local Tesseract OCR is unavailable.")
+
+    monkeypatch.setattr(label_ocr, "extract_text", unavailable_ocr)
+
+    response = client.post(
+        "/extract/label",
+        files={"file": ("label.png", _png_image_bytes(), "image/png")},
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Local Tesseract OCR is unavailable."
