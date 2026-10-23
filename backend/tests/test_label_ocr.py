@@ -36,6 +36,7 @@ def test_configure_tesseract_uses_standard_windows_path(monkeypatch, tmp_path):
     standard_executable = tmp_path / "tesseract.exe"
     standard_executable.touch()
     monkeypatch.delenv("TESSERACT_CMD", raising=False)
+    monkeypatch.setattr(label_ocr.os, "name", "nt")
     monkeypatch.setattr(label_ocr.shutil, "which", lambda _: None)
     monkeypatch.setattr(
         label_ocr,

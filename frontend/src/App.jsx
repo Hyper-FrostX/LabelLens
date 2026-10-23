@@ -1,4 +1,6 @@
 import { useState } from "react";
+import AdditiveScanner from "./components/AdditiveScanner";
+import KnowledgeBaseExplorer from "./components/KnowledgeBaseExplorer";
 import "./App.css";
 
 const API_BASE_URL = (
@@ -38,6 +40,9 @@ function getApiErrorMessage(payload, status) {
 }
 
 function App() {
+  const [activeTab, setActiveTab] = useState("additives");
+
+  // Nutrition state
   const [values, setValues] = useState({
     sugar_g: "",
     sodium_mg: "",
@@ -124,6 +129,7 @@ function App() {
 
   return (
     <main className="app-shell">
+      {/* Header */}
       <header className="site-header">
         <a className="brand" href="/" aria-label="Label Lens home">
           <span className="brand-mark" aria-hidden="true">
@@ -131,214 +137,282 @@ function App() {
           </span>
           <span>Label Lens</span>
         </a>
-        <span className="header-tag">Nutrition, made clearer</span>
+        <div className="header-meta">
+          <span className="header-tag">Evidence-based food transparency</span>
+        </div>
       </header>
 
+      {/* Main Tab Navigation */}
+      <nav className="tab-nav" aria-label="Feature navigation">
+        <button
+          type="button"
+          className={`tab-btn ${activeTab === "additives" ? "active" : ""}`}
+          onClick={() => setActiveTab("additives")}
+        >
+          <span className="tab-icon" aria-hidden="true">🧪</span>
+          <span>Harmful Additive Detection</span>
+        </button>
+        <button
+          type="button"
+          className={`tab-btn ${activeTab === "nutrition" ? "active" : ""}`}
+          onClick={() => setActiveTab("nutrition")}
+        >
+          <span className="tab-icon" aria-hidden="true">📊</span>
+          <span>Nutrition Breakdown</span>
+        </button>
+        <button
+          type="button"
+          className={`tab-btn ${activeTab === "knowledge-base" ? "active" : ""}`}
+          onClick={() => setActiveTab("knowledge-base")}
+        >
+          <span className="tab-icon" aria-hidden="true">📚</span>
+          <span>Additives Knowledge Base</span>
+        </button>
+      </nav>
+
+      {/* Dynamic Intro Hero */}
       <section className="intro">
-        <p className="eyebrow">A clearer look at your food</p>
-        <h1>Know what’s in<br className="desktop-break" /> your serving.</h1>
-        <p className="intro-copy">
-          Enter the nutrition values from a food label to see how they compare
-          with Label Lens’ project reference values.
-        </p>
+        {activeTab === "additives" && (
+          <>
+            <p className="eyebrow">CURATED SCIENCE & FOOD SAFETY</p>
+            <h1>Harmful Additive &amp;<br className="desktop-break" /> Ingredient Detection</h1>
+            <p className="intro-copy">
+              Identify selected additives and ingredients from a curated knowledge base.
+              View functional purposes and evidence-based concern levels, avoiding blanket
+              assumptions that every additive is harmful.
+            </p>
+          </>
+        )}
+        {activeTab === "nutrition" && (
+          <>
+            <p className="eyebrow">A CLEARER LOOK AT YOUR FOOD</p>
+            <h1>Know what’s in<br className="desktop-break" /> your serving.</h1>
+            <p className="intro-copy">
+              Enter the nutrition values from a food label to see how they compare
+              with Label Lens’ project reference values.
+            </p>
+          </>
+        )}
+        {activeTab === "knowledge-base" && (
+          <>
+            <p className="eyebrow">SCIENTIFIC ENCYCLOPEDIA</p>
+            <h1>Explore Curated<br className="desktop-break" /> Food Additives</h1>
+            <p className="intro-copy">
+              Browse evidence-based profiles of common additives, their roles in food preservation
+              and manufacturing, and global regulatory evaluations from EFSA, FDA, and WHO.
+            </p>
+          </>
+        )}
       </section>
 
-      <section className="analysis-layout" aria-label="Nutrition analysis">
-        <form className="analysis-card" onSubmit={submitAnalysis} noValidate>
-          <div className="card-heading">
-            <div>
-              <p className="step-label">NUTRITION DETAILS</p>
-              <h2>Enter label values</h2>
-            </div>
-            <span className="optional-label">Values can be left blank</span>
-          </div>
+      {/* Tab Panels */}
+      {activeTab === "additives" && (
+        <AdditiveScanner apiBaseUrl={API_BASE_URL} />
+      )}
 
-          <fieldset className="basis-fieldset">
-            <legend>Values are listed</legend>
-            <div className="basis-options">
-              <label className={basis === "per_serving" ? "selected" : ""}>
-                <input
-                  type="radio"
-                  name="basis"
-                  value="per_serving"
-                  checked={basis === "per_serving"}
-                  onChange={() => setBasis("per_serving")}
-                />
-                <span>Per serving</span>
-              </label>
-              <label className={basis === "per_100g" ? "selected" : ""}>
-                <input
-                  type="radio"
-                  name="basis"
-                  value="per_100g"
-                  checked={basis === "per_100g"}
-                  onChange={() => setBasis("per_100g")}
-                />
-                <span>Per 100 g</span>
-              </label>
+      {activeTab === "nutrition" && (
+        <section className="analysis-layout" aria-label="Nutrition analysis">
+          <form className="analysis-card" onSubmit={submitAnalysis} noValidate>
+            <div className="card-heading">
+              <div>
+                <p className="step-label">NUTRITION DETAILS</p>
+                <h2>Enter label values</h2>
+              </div>
+              <span className="optional-label">Values can be left blank</span>
             </div>
-          </fieldset>
 
-          <div className="nutrient-inputs">
-            {nutrientFields.map((field) => (
-              <label className="input-group" htmlFor={field.name} key={field.name}>
-                <span className="input-label">{field.label}</span>
-                <span className="input-description">{field.description}</span>
-                <span className="number-input">
+            <fieldset className="basis-fieldset">
+              <legend>Values are listed</legend>
+              <div className="basis-options">
+                <label className={basis === "per_serving" ? "selected" : ""}>
                   <input
-                    id={field.name}
-                    name={field.name}
-                    type="number"
-                    min="0"
-                    step="any"
-                    inputMode="decimal"
-                    placeholder="e.g. 0"
-                    value={values[field.name]}
-                    onChange={updateValue}
-                    aria-label={`${field.label} in ${field.unit}`}
+                    type="radio"
+                    name="basis"
+                    value="per_serving"
+                    checked={basis === "per_serving"}
+                    onChange={() => setBasis("per_serving")}
                   />
-                  <span>{field.unit}</span>
-                </span>
-              </label>
-            ))}
-          </div>
+                  <span>Per serving</span>
+                </label>
+                <label className={basis === "per_100g" ? "selected" : ""}>
+                  <input
+                    type="radio"
+                    name="basis"
+                    value="per_100g"
+                    checked={basis === "per_100g"}
+                    onChange={() => setBasis("per_100g")}
+                  />
+                  <span>Per 100 g</span>
+                </label>
+              </div>
+            </fieldset>
 
-          {error && (
-            <p className="form-error" role="alert">
-              <span aria-hidden="true">!</span>
-              {error}
-            </p>
-          )}
+            <div className="nutrient-inputs">
+              {nutrientFields.map((field) => (
+                <label className="input-group" htmlFor={field.name} key={field.name}>
+                  <span className="input-label">{field.label}</span>
+                  <span className="input-description">{field.description}</span>
+                  <span className="number-input">
+                    <input
+                      id={field.name}
+                      name={field.name}
+                      type="number"
+                      min="0"
+                      step="any"
+                      inputMode="decimal"
+                      placeholder="e.g. 0"
+                      value={values[field.name]}
+                      onChange={updateValue}
+                      aria-label={`${field.label} in ${field.unit}`}
+                    />
+                    <span>{field.unit}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
 
-          <button className="submit-button" type="submit" disabled={isLoading}>
-            {isLoading ? (
-              <>
-                <span className="spinner" aria-hidden="true" />
-                Analyzing…
-              </>
-            ) : (
-              <>
-                Analyze nutrition
-                <span aria-hidden="true">→</span>
-              </>
+            {error && (
+              <p className="form-error" role="alert">
+                <span aria-hidden="true">!</span>
+                {error}
+              </p>
             )}
-          </button>
-          <p className="form-footnote">
-            You can enter one or more values. No label image is uploaded.
-          </p>
-        </form>
 
-        <aside className="results-card" aria-live="polite">
-          {result ? (
-            <div className="results-content">
-              <p className="step-label">YOUR BREAKDOWN</p>
-              <h2>Nutrition snapshot</h2>
-              <p className="percentage-context">{result.percentage_context}</p>
+            <button className="submit-button" type="submit" disabled={isLoading}>
+              {isLoading ? (
+                <>
+                  <span className="spinner" aria-hidden="true" />
+                  Analyzing…
+                </>
+              ) : (
+                <>
+                  Analyze nutrition
+                  <span aria-hidden="true">→</span>
+                </>
+              )}
+            </button>
+            <p className="form-footnote">
+              You can enter one or more values. No label image is uploaded.
+            </p>
+          </form>
 
-              <div className="result-list">
-                {nutrientFields.map((field) => {
-                  const nutrientKey = field.name.replace(/_g$|_mg$/, "");
-                  const resultKey =
-                    nutrientKey === "saturated_fat"
-                      ? "saturated_fat"
-                      : nutrientKey;
-                  const nutrient = result.nutrients?.[resultKey];
-                  if (!nutrient) return null;
+          <aside className="results-card" aria-live="polite">
+            {result ? (
+              <div className="results-content">
+                <p className="step-label">YOUR BREAKDOWN</p>
+                <h2>Nutrition snapshot</h2>
+                <p className="percentage-context">{result.percentage_context}</p>
 
-                  return (
-                    <div className="result-row" key={field.name}>
-                      <div className="result-main">
-                        <div>
-                          <span className="result-name">{field.label}</span>
-                          <span className="result-value">
-                            {formatValue(nutrient.value)}{" "}
-                            {nutrient.value === null ? "" : field.unit}
+                <div className="result-list">
+                  {nutrientFields.map((field) => {
+                    const nutrientKey = field.name.replace(/_g$|_mg$/, "");
+                    const resultKey =
+                      nutrientKey === "saturated_fat"
+                        ? "saturated_fat"
+                        : nutrientKey;
+                    const nutrient = result.nutrients?.[resultKey];
+                    if (!nutrient) return null;
+
+                    return (
+                      <div className="result-row" key={field.name}>
+                        <div className="result-main">
+                          <div>
+                            <span className="result-name">{field.label}</span>
+                            <span className="result-value">
+                              {formatValue(nutrient.value)}{" "}
+                              {nutrient.value === null ? "" : field.unit}
+                            </span>
+                          </div>
+                          <span
+                            className={`level-badge level-${nutrient.level}`}
+                          >
+                            {nutrient.level}
                           </span>
                         </div>
-                        <span
-                          className={`level-badge level-${nutrient.level}`}
-                        >
-                          {nutrient.level}
-                        </span>
+                        <div className="percentage-line">
+                          <span>Daily-reference contribution</span>
+                          <strong>
+                            {nutrient.percentage_of_daily_limit === null
+                              ? "—"
+                              : `${formatValue(
+                                  nutrient.percentage_of_daily_limit
+                                )}%`}
+                          </strong>
+                        </div>
                       </div>
-                      <div className="percentage-line">
-                        <span>Daily-reference contribution</span>
-                        <strong>
-                          {nutrient.percentage_of_daily_limit === null
-                            ? "—"
-                            : `${formatValue(
-                                nutrient.percentage_of_daily_limit
-                              )}%`}
-                        </strong>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="sugar-callout">
-                <span className="sugar-icon" aria-hidden="true">
-                  ✳
-                </span>
-                <div>
-                  <span>Approximate sugar</span>
-                  <strong>
-                    {result.sugar_teaspoons === null
-                      ? "Not provided"
-                      : `${formatValue(result.sugar_teaspoons)} tsp`}
-                  </strong>
+                    );
+                  })}
                 </div>
+
+                <div className="sugar-callout">
+                  <span className="sugar-icon" aria-hidden="true">
+                    ✳
+                  </span>
+                  <div>
+                    <span>Approximate sugar</span>
+                    <strong>
+                      {result.sugar_teaspoons === null
+                        ? "Not provided"
+                        : `${formatValue(result.sugar_teaspoons)} tsp`}
+                    </strong>
+                  </div>
+                </div>
+
+                <p className="disclaimer">{result.note}</p>
               </div>
+            ) : (
+              <div className="empty-results">
+                <span className="empty-icon" aria-hidden="true">
+                  <svg viewBox="0 0 48 48" fill="none">
+                    <rect
+                      x="8"
+                      y="7"
+                      width="32"
+                      height="36"
+                      rx="8"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    />
+                    <path
+                      d="M17 18h14M17 25h8M17 32h5"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                    />
+                    <circle cx="33" cy="33" r="7" fill="currentColor" />
+                    <path
+                      d="m31 33 1.4 1.4L35 31.8"
+                      stroke="white"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </span>
+                <h2>Your results will appear here</h2>
+                <p>
+                  Add the values shown on your nutrition label and choose whether
+                  they’re listed per serving or per 100 g.
+                </p>
+                <span className="basis-hint">
+                  {basis === "per_serving"
+                    ? "Percentages will describe one reported serving."
+                    : "Percentages will describe 100 g of the product."}
+                </span>
+              </div>
+            )}
+          </aside>
+        </section>
+      )}
 
-              <p className="disclaimer">{result.note}</p>
-            </div>
-          ) : (
-            <div className="empty-results">
-              <span className="empty-icon" aria-hidden="true">
-                <svg viewBox="0 0 48 48" fill="none">
-                  <rect
-                    x="8"
-                    y="7"
-                    width="32"
-                    height="36"
-                    rx="8"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  />
-                  <path
-                    d="M17 18h14M17 25h8M17 32h5"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                  />
-                  <circle cx="33" cy="33" r="7" fill="currentColor" />
-                  <path
-                    d="m31 33 1.4 1.4L35 31.8"
-                    stroke="white"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </span>
-              <h2>Your results will appear here</h2>
-              <p>
-                Add the values shown on your nutrition label and choose whether
-                they’re listed per serving or per 100 g.
-              </p>
-              <span className="basis-hint">
-                {basis === "per_serving"
-                  ? "Percentages will describe one reported serving."
-                  : "Percentages will describe 100 g of the product."}
-              </span>
-            </div>
-          )}
-        </aside>
-      </section>
+      {activeTab === "knowledge-base" && (
+        <KnowledgeBaseExplorer apiBaseUrl={API_BASE_URL} />
+      )}
 
+      {/* Footer */}
       <footer className="page-footer">
         <span>Label Lens</span>
-        <span>Informational nutrition references, not a health grade.</span>
+        <span>Evidence-based ingredient &amp; nutrition references, not medical advice.</span>
       </footer>
     </main>
   );

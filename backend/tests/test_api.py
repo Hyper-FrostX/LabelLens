@@ -232,3 +232,66 @@ def test_label_extraction_endpoint_reports_unavailable_ocr(monkeypatch):
 
     assert response.status_code == 503
     assert response.json()["detail"] == "Local Tesseract OCR is unavailable."
+
+
+def test_knowledge_base_endpoint_returns_additives_and_filters():
+    # Test full knowledge base
+    response = client.get("/additives/knowledge-base")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] >= 15
+    assert len(data["additives"]) == data["total"]
+
+    # Filter by concern level
+    resp_high = client.get("/additives/knowledge-base?concern_level=high")
+    assert resp_high.status_code == 200
+    high_data = resp_high.json()
+    assert all(a["concern_level"] == "high" for a in high_data["additives"])
+
+    # Search query
+    resp_search = client.get("/additives/knowledge-base?query=ascorbic")
+    assert resp_search.status_code == 200
+    search_data = resp_search.json()
+    assert any("Ascorbic Acid" in a["name"] for a in search_data["additives"])
+
+
+def test_analyze_ingredients_endpoint_with_list():
+    response = client.post(
+        "/analyze/ingredients",
+        json={
+            "ingredients": [
+                "corn syrup",
+                "titanium dioxide",
+                "citric acid",
+                "red 40",
+            ]
+        },
+    )
+    assert response.status_code == 200
+    result = response.json()
+    assert result["total_ingredients_scanned"] == 4
+    assert result["total_additives_detected"] == 3
+    assert result["overall_concern"] == "high"
+    assert result["counts"]["high"] == 1
+    assert result["counts"]["moderate"] == 1
+    assert result["counts"]["low"] == 1
+
+    # Verify each additive has required fields
+    for item in result["matched_additives"]:
+        assert "purpose" in item
+        assert "concern_level" in item
+        assert "evidence_source" in item
+        assert "regulatory_status" in item
+
+
+def test_analyze_ingredients_endpoint_with_text():
+    response = client.post(
+        "/analyze/ingredients",
+        json={"ingredients_text": "whole oats, salt, soy lecithin, calcium propionate"},
+    )
+    assert response.status_code == 200
+    result = response.json()
+    assert result["total_additives_detected"] == 2
+    assert result["overall_concern"] == "low"
+    assert result["counts"]["low"] == 2
+    assert "Not every additive is harmful" in result["guidance_note"]

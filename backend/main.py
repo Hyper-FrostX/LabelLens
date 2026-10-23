@@ -7,6 +7,11 @@ from pydantic import BaseModel, Field, field_validator
 from starlette.concurrency import run_in_threadpool
 
 from app.services import label_ocr
+from app.services.additive_detector import (
+    ConcernLevel,
+    detect_additives,
+    get_curated_additives,
+)
 from app.services.label_parser import parse_label_text
 from app.services.nutrition import analyze_nutrition
 
@@ -16,8 +21,8 @@ MAX_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024
 
 app = FastAPI(
     title="Label Lens API",
-    description="AI-powered food label analysis",
-    version="0.1.0",
+    description="AI-powered food label analysis and harmful additive detection",
+    version="0.2.0",
 )
 
 app.add_middleware(
@@ -46,6 +51,11 @@ class NutritionInput(BaseModel):
         return value
 
 
+class IngredientAnalysisInput(BaseModel):
+    ingredients: list[str] | None = None
+    ingredients_text: str | None = None
+
+
 @app.get("/")
 def home():
     return {
@@ -59,6 +69,19 @@ def health_check():
     return {"status": "healthy"}
 
 
+@app.get("/additives/knowledge-base")
+def knowledge_base_endpoint(
+    concern_level: ConcernLevel | None = None,
+    query: str | None = None,
+):
+    """Retrieve curated additives and ingredients with functional purpose and evidence."""
+    additives = get_curated_additives(concern_level=concern_level, query=query)
+    return {
+        "total": len(additives),
+        "additives": additives,
+    }
+
+
 @app.post("/analyze/nutrition")
 def nutrition_endpoint(data: NutritionInput):
     return analyze_nutrition(
@@ -67,6 +90,13 @@ def nutrition_endpoint(data: NutritionInput):
         saturated_fat_g=data.saturated_fat_g,
         basis=data.basis,
     )
+
+
+@app.post("/analyze/ingredients")
+def analyze_ingredients_endpoint(data: IngredientAnalysisInput):
+    """Identify selected additives and ingredients from the curated knowledge base."""
+    target = data.ingredients if data.ingredients is not None else data.ingredients_text
+    return detect_additives(target)
 
 
 @app.post(
@@ -98,4 +128,9 @@ async def extract_label_endpoint(file: UploadFile = File(...)):
     except label_ocr.OCRServiceError as error:
         raise HTTPException(status_code=503, detail=str(error)) from error
 
-    return parse_label_text(ocr_text)
+    parsed = parse_label_text(ocr_text)
+    parsed["additive_analysis"] = detect_additives(
+        parsed.get("ingredients") or parsed.get("ingredients_text")
+    )
+    return parsed
+
