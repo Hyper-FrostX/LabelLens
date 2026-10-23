@@ -10,6 +10,14 @@ _FIELD_PATTERNS = {
         r"(?:[ \t]+\d+(?:\.\d+)?[ \t]*%)?[ \t]*$",
         re.IGNORECASE | re.MULTILINE,
     ),
+    "added_sugar_g": re.compile(
+        r"^[ \t]*added[ \t]+sugars?[ \t]*"
+        r"(?:\([ \t]*(?P<label_unit>g|grams?)[ \t]*\))?[ \t]*"
+        r"[:\-]?[ \t]*(?:\r?\n[ \t]*)?"
+        r"(?P<value>\d+(?:\.\d+)?)[ \t]*(?P<unit>g|grams?)?"
+        r"(?:[ \t]+\d+(?:\.\d+)?[ \t]*%)?[ \t]*$",
+        re.IGNORECASE | re.MULTILINE,
+    ),
     "sodium_mg": re.compile(
         r"^[ \t]*sodium[ \t]*"
         r"(?:\([ \t]*(?P<label_unit>mg|milligrams?)[ \t]*\))?[ \t]*"
@@ -29,10 +37,11 @@ _FIELD_PATTERNS = {
 }
 _BASIS_PATTERNS = {
     "per_serving": re.compile(
-        r"\b(?:amount\s+)?per\s+serving\b",
+        r"\b(?:(?:amount\s*[:\-]?\s*)?per\s+serv(?:e|ing))\b",
         re.IGNORECASE,
     ),
     "per_100g": re.compile(r"\bper\s*100\s*g\b", re.IGNORECASE),
+    "per_100ml": re.compile(r"\bper\s*100\s*ml\b", re.IGNORECASE),
 }
 _SERVING_SIZE = re.compile(
     r"^[ \t]*serving[ \t]+size[ \t]*:?[ \t]*"
@@ -83,6 +92,7 @@ def _parse_nutrient(
 
     return {
         "value": value,
+        "unit": expected_unit if value is not None else None,
         "source_text": source_text,
         "confidence": None,
         "needs_review": True,
@@ -92,9 +102,24 @@ def _parse_nutrient(
 def _extract_basis(text: str) -> str | None:
     has_per_serving = bool(_BASIS_PATTERNS["per_serving"].search(text))
     has_per_100g = bool(_BASIS_PATTERNS["per_100g"].search(text))
-    if has_per_serving == has_per_100g:
+    has_per_100ml = bool(_BASIS_PATTERNS["per_100ml"].search(text))
+    basis_matches = [
+        basis
+        for basis, present in (
+            ("per_serving", has_per_serving),
+            ("per_100g", has_per_100g),
+            ("per_100ml", has_per_100ml),
+        )
+        if present
+    ]
+    if len(basis_matches) != 1:
         return None
-    return "per_serving" if has_per_serving else "per_100g"
+    return basis_matches[0]
+
+
+def split_ingredients_text(ingredients_text: str) -> list[str] | None:
+    """Split a label ingredient list without splitting nested parentheticals."""
+    return _split_ingredients(ingredients_text)
 
 
 def _extract_single_value(
@@ -177,7 +202,12 @@ def parse_label_text(ocr_text: str) -> dict:
 
     nutrients = {
         field: _parse_nutrient(field, ocr_text)
-        for field in ("sugar_g", "sodium_mg", "saturated_fat_g")
+        for field in (
+            "sugar_g",
+            "added_sugar_g",
+            "sodium_mg",
+            "saturated_fat_g",
+        )
     }
 
     review_required_fields = [

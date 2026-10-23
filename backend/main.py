@@ -1,3 +1,4 @@
+
 import math
 from typing import Literal
 
@@ -12,8 +13,13 @@ from app.services.additive_detector import (
     detect_additives,
     get_curated_additives,
 )
-from app.services.label_parser import parse_label_text
-from app.services.nutrition import analyze_nutrition
+from app.services.ingredient_analysis import analyze_ingredients
+from app.services.label_parser import parse_label_text, split_ingredients_text
+from app.services.nutrition import (
+    analyze_excess_nutrients,
+    analyze_nutrition,
+    calculate_health_score,
+)
 
 
 MAX_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024
@@ -21,8 +27,8 @@ MAX_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024
 
 app = FastAPI(
     title="Label Lens API",
-    description="AI-powered food label analysis and harmful additive detection",
-    version="0.2.0",
+    description="AI-powered food label analysis and nutrition intelligence",
+    version="0.3.0",
 )
 
 app.add_middleware(
@@ -30,6 +36,8 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -54,6 +62,35 @@ class NutritionInput(BaseModel):
 class IngredientAnalysisInput(BaseModel):
     ingredients: list[str] | None = None
     ingredients_text: str | None = None
+
+
+class LabelAnalysisInput(BaseModel):
+    sugar_g: float | None = Field(default=None, ge=0)
+    added_sugar_g: float | None = Field(default=None, ge=0)
+    sodium_mg: float | None = Field(default=None, ge=0)
+    saturated_fat_g: float | None = Field(default=None, ge=0)
+    basis: str | None = Field(default=None, max_length=30)
+    serving_size_text: str | None = Field(default=None, max_length=100)
+    sugar_unit: str | None = Field(default=None, max_length=20)
+    added_sugar_unit: str | None = Field(default=None, max_length=20)
+    sodium_unit: str | None = Field(default=None, max_length=20)
+    saturated_fat_unit: str | None = Field(default=None, max_length=20)
+    ingredients_text: str | None = Field(default=None, max_length=20000)
+
+    @field_validator(
+        "sugar_g",
+        "added_sugar_g",
+        "sodium_mg",
+        "saturated_fat_g",
+    )
+    @classmethod
+    def validate_finite_label_nutrients(
+        cls,
+        value: float | None,
+    ) -> float | None:
+        if value is not None and not math.isfinite(value):
+            raise ValueError("Nutrient values must be finite.")
+        return value
 
 
 @app.get("/")
@@ -95,8 +132,58 @@ def nutrition_endpoint(data: NutritionInput):
 @app.post("/analyze/ingredients")
 def analyze_ingredients_endpoint(data: IngredientAnalysisInput):
     """Identify selected additives and ingredients from the curated knowledge base."""
-    target = data.ingredients if data.ingredients is not None else data.ingredients_text
+    target = (
+        data.ingredients
+        if data.ingredients is not None
+        else data.ingredients_text
+    )
     return detect_additives(target)
+
+
+@app.post("/analyze/label")
+def label_analysis_endpoint(data: LabelAnalysisInput):
+    ingredients = (
+        split_ingredients_text(data.ingredients_text)
+        if data.ingredients_text is not None
+        else None
+    )
+    units = {
+        "total_sugar": data.sugar_unit,
+        "added_sugar": data.added_sugar_unit,
+        "sodium": data.sodium_unit,
+        "saturated_fat": data.saturated_fat_unit,
+    }
+    return {
+        "basis": data.basis,
+        "excess_nutrients": analyze_excess_nutrients(
+            sugar_g=data.sugar_g,
+            added_sugar_g=data.added_sugar_g,
+            sodium_mg=data.sodium_mg,
+            saturated_fat_g=data.saturated_fat_g,
+            basis=data.basis,
+            units=units,
+            serving_size_text=data.serving_size_text,
+        ),
+        "health_score": calculate_health_score(
+            sugar_g=data.sugar_g,
+            added_sugar_g=data.added_sugar_g,
+            sodium_mg=data.sodium_mg,
+            saturated_fat_g=data.saturated_fat_g,
+            basis=data.basis,
+            units=units,
+            serving_size_text=data.serving_size_text,
+        ),
+        "ingredient_analysis": analyze_ingredients(
+            ingredients,
+            ingredients_available=data.ingredients_text is not None,
+        ),
+        "note": (
+            "These project-defined nutrient references and curated "
+            "ingredient notes are informational. They are not medical "
+            "advice, official nutrition grades, or proof that a product "
+            "is safe or unsafe."
+        ),
+    }
 
 
 @app.post(
@@ -133,4 +220,3 @@ async def extract_label_endpoint(file: UploadFile = File(...)):
         parsed.get("ingredients") or parsed.get("ingredients_text")
     )
     return parsed
-
