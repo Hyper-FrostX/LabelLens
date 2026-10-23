@@ -21,6 +21,7 @@ def test_parser_extracts_explicit_label_fields_and_nested_ingredients():
     assert result["basis"] == "per_serving"
     assert result["serving_size_text"] == "30 g"
     assert result["nutrients"]["sugar_g"]["value"] == 8.5
+    assert result["nutrients"]["sugar_g"]["unit"] == "g"
     assert result["nutrients"]["sodium_mg"]["value"] == 120
     assert result["nutrients"]["saturated_fat_g"]["value"] == 1.5
     assert result["ingredients_text"] == (
@@ -68,6 +69,7 @@ def test_parser_marks_all_extracted_nutrients_for_review_without_confidence():
         "basis",
         "serving_size_text",
         "sugar_g",
+        "added_sugar_g",
         "sodium_mg",
         "saturated_fat_g",
         "ingredients",
@@ -121,6 +123,9 @@ def test_parser_extracts_values_from_reported_packet_ocr_text():
     assert result["nutrients"]["sodium_mg"]["value"] == 249
     assert result["nutrients"]["saturated_fat_g"]["value"] == 0.8
     assert result["nutrients"]["sugar_g"]["source_text"] == "Total Sugar (g) 3.4"
+    assert result["nutrients"]["added_sugar_g"]["source_text"] == (
+        "Added Sugar (g) 1.5 3%"
+    )
     assert result["nutrients"]["sodium_mg"]["source_text"] == (
         "Sodium (mg) 249 12%"
     )
@@ -155,6 +160,7 @@ def test_parser_does_not_confuse_added_sugar_or_total_fat_with_target_fields():
     )
 
     assert result["nutrients"]["sugar_g"]["value"] is None
+    assert result["nutrients"]["added_sugar_g"]["value"] == 1.5
     assert result["nutrients"]["saturated_fat_g"]["value"] is None
     assert result["nutrients"]["sodium_mg"]["value"] == 249
     assert "sugar_g" in result["review_required_fields"]
@@ -172,3 +178,61 @@ def test_parser_keeps_duplicate_or_wrong_unit_values_unresolved():
     assert result["nutrients"]["sugar_g"]["value"] is None
     assert result["nutrients"]["sodium_mg"]["value"] is None
     assert result["nutrients"]["saturated_fat_g"]["value"] is None
+
+
+def test_parser_distinguishes_added_sugar_and_supports_per_100_ml():
+    result = parse_label_text(
+        "Per 100 ml\n"
+        "Total Sugars (g) 8\n"
+        "Added Sugars (g) 4\n"
+        "Sodium (mg) 80\n"
+        "Saturated Fat (g) 1"
+    )
+
+    assert result["basis"] == "per_100ml"
+    assert result["nutrients"]["sugar_g"]["value"] == 8
+    assert result["nutrients"]["added_sugar_g"]["value"] == 4
+    assert result["nutrients"]["sodium_mg"]["unit"] == "mg"
+    assert result["nutrients"]["saturated_fat_g"]["unit"] == "g"
+
+
+def test_parser_leaves_ambiguous_basis_and_wrong_added_sugar_unit_unresolved():
+    result = parse_label_text(
+        "Per 100 g\n"
+        "Per 100 ml\n"
+        "Added Sugar (mg) 25"
+    )
+
+    assert result["basis"] is None
+    assert result["nutrients"]["added_sugar_g"]["value"] is None
+    assert result["nutrients"]["added_sugar_g"]["unit"] is None
+
+
+def test_parser_does_not_treat_salt_as_sodium():
+    result = parse_label_text("Per 100 g\nSalt 1 g")
+
+    assert result["nutrients"]["sodium_mg"]["value"] is None
+
+
+def test_parser_recognizes_per_serve_and_supplied_snack_label_values():
+    result = parse_label_text(
+        "Serving Size 25g Amount %\n"
+        "Amount: Per Serve\n"
+        "Total Sugar (g) 3.4\n"
+        "Added Sugar (g) 1.5\n"
+        "Sodium (mg) 249\n"
+        "Saturated Fat (g) 0.8"
+    )
+
+    assert result["basis"] == "per_serving"
+    assert result["serving_size_text"] == "25 g"
+    assert result["nutrients"]["sugar_g"]["value"] == 3.4
+    assert result["nutrients"]["added_sugar_g"]["value"] == 1.5
+    assert result["nutrients"]["sodium_mg"]["value"] == 249
+    assert result["nutrients"]["saturated_fat_g"]["value"] == 0.8
+
+
+def test_parser_does_not_infer_per_serve_from_serving_size_alone():
+    result = parse_label_text("Serving Size 25 g\nTotal Sugar (g) 3.4")
+
+    assert result["basis"] is None

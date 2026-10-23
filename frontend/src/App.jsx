@@ -10,11 +10,26 @@ const ACCEPTED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp"];
 
 const nutrientFields = [
   { name: "sugar_g", label: "Total sugar", unit: "g" },
+  { name: "added_sugar_g", label: "Added sugar", unit: "g" },
   { name: "sodium_mg", label: "Sodium", unit: "mg" },
   { name: "saturated_fat_g", label: "Saturated fat", unit: "g" },
 ];
 
-function getApiErrorMessage(payload, status) {
+const nutrientUnitFields = {
+  sugar_g: "sugar_unit",
+  added_sugar_g: "added_sugar_unit",
+  sodium_mg: "sodium_unit",
+  saturated_fat_g: "saturated_fat_unit",
+};
+
+const nutrientLabels = {
+  total_sugar: "Total sugar",
+  added_sugar: "Added sugar",
+  sodium: "Sodium",
+  saturated_fat: "Saturated fat",
+};
+
+function getApiErrorMessage(payload, status, action = "Label extraction") {
   if (Array.isArray(payload?.detail)) {
     return payload.detail
       .map((issue) => {
@@ -27,12 +42,29 @@ function getApiErrorMessage(payload, status) {
   if (typeof payload?.detail === "string") {
     return payload.detail.slice(0, 500);
   }
-  return `Label extraction failed (HTTP ${status}).`;
+  return `${action} failed (HTTP ${status}).`;
 }
 
 function formatValue(value) {
   if (value === null || value === undefined || value === "") return "Not found";
   return String(value);
+}
+
+function getConcernClass(item) {
+  if (item.needs_review) return "concern-review";
+  if (String(item.concern_level ?? "").startsWith("Established hazard")) {
+    return "concern-established";
+  }
+  if (item.concern_level === "Context-dependent") return "concern-context";
+  return "concern-neutral";
+}
+
+function formatBasis(basis) {
+  return {
+    per_serving: "per serving",
+    per_100g: "per 100 g",
+    per_100ml: "per 100 ml",
+  }[basis] ?? "basis needs review";
 }
 
 function isAcceptedImage(file) {
@@ -75,21 +107,38 @@ function App() {
   const [isConfirmed, setIsConfirmed] = useState(false);
   const [analysisValues, setAnalysisValues] = useState({
     sugar_g: "",
+    added_sugar_g: "",
     sodium_mg: "",
     saturated_fat_g: "",
   });
-  const [analysisBasis, setAnalysisBasis] = useState("per_serving");
+  const [analysisBasis, setAnalysisBasis] = useState("");
+  const [analysisServingSize, setAnalysisServingSize] = useState("");
   const [analysisResult, setAnalysisResult] = useState(null);
   const [analysisError, setAnalysisError] = useState("");
+  const [confirmedLabel, setConfirmedLabel] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const evidenceConcerns =
+    analysisResult?.ingredient_analysis?.evidence_concerns ?? [];
   const fileInputRef = useRef(null);
   const previewUrlRef = useRef("");
+  const resultSectionRef = useRef(null);
+  const analysisRequestIdRef = useRef(0);
 
   useEffect(() => {
     return () => {
       if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (!analysisResult) return;
+    resultSectionRef.current?.scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "auto"
+        : "smooth",
+      block: "start",
+    });
+  }, [analysisResult]);
 
   function setImagePreview(file) {
     if (previewUrlRef.current) {
@@ -106,12 +155,20 @@ function App() {
     }
   }
 
+  function invalidateAnalysis() {
+    analysisRequestIdRef.current += 1;
+    setAnalysisResult(null);
+    setAnalysisError("");
+    setIsAnalyzing(false);
+  }
+
   function selectImage(file) {
     setUploadError("");
     setExtraction(null);
     setReview(null);
     setIsConfirmed(false);
-    setAnalysisResult(null);
+    invalidateAnalysis();
+    setConfirmedLabel(null);
 
     if (!file) return;
     if (!isAcceptedImage(file)) {
@@ -136,6 +193,8 @@ function App() {
     setExtraction(null);
     setReview(null);
     setIsConfirmed(false);
+    setConfirmedLabel(null);
+    invalidateAnalysis();
     setIsUploading(true);
 
     try {
@@ -180,11 +239,15 @@ function App() {
 
   function updateReview(field, value) {
     setIsConfirmed(false);
+    setConfirmedLabel(null);
+    invalidateAnalysis();
     setReview((current) => ({ ...current, [field]: value }));
   }
 
   function updateNutrient(name, value) {
     setIsConfirmed(false);
+    setConfirmedLabel(null);
+    invalidateAnalysis();
     setReview((current) => ({
       ...current,
       nutrients: { ...current.nutrients, [name]: value },
@@ -209,19 +272,45 @@ function App() {
 
     setUploadError("");
     setAnalysisValues(nextValues);
-    if (review.basis) setAnalysisBasis(review.basis);
+    setAnalysisBasis(review.basis);
+    setAnalysisServingSize(review.servingSize);
+    const snapshot = {
+      nutrients: nextValues,
+      basis: review.basis,
+      servingSize: review.servingSize,
+      ingredientsText: review.ingredientsText,
+    };
+    setConfirmedLabel(snapshot);
     setIsConfirmed(true);
+    void submitAnalysis(null, snapshot);
   }
 
-  async function submitAnalysis(event) {
-    event.preventDefault();
+  async function submitAnalysis(event, labelSnapshot = null) {
+    event?.preventDefault();
+    const requestId = ++analysisRequestIdRef.current;
     setAnalysisError("");
     setAnalysisResult(null);
+    setIsAnalyzing(false);
 
-    const payload = { basis: analysisBasis };
-    let hasValue = false;
+    const valuesSnapshot = labelSnapshot ?? confirmedLabel;
+    if (extraction && !valuesSnapshot) {
+      setAnalysisError(
+        "Review and confirm the extracted label details before analyzing them."
+      );
+      return;
+    }
+
+    const valuesToAnalyze = valuesSnapshot?.nutrients ?? analysisValues;
+    const payload = {
+      basis: (valuesSnapshot?.basis ?? analysisBasis) || null,
+      serving_size_text:
+        (valuesSnapshot?.servingSize ?? analysisServingSize).trim() || null,
+      ingredients_text:
+        valuesSnapshot?.ingredientsText.trim() || null,
+    };
     for (const field of nutrientFields) {
-      const rawValue = analysisValues[field.name].trim();
+      const rawValue = valuesToAnalyze[field.name].trim();
+      payload[nutrientUnitFields[field.name]] = field.unit;
       if (rawValue === "") {
         payload[field.name] = null;
         continue;
@@ -232,16 +321,11 @@ function App() {
         return;
       }
       payload[field.name] = value;
-      hasValue = true;
-    }
-    if (!hasValue) {
-      setAnalysisError("Enter at least one nutrient amount to analyze.");
-      return;
     }
 
     setIsAnalyzing(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/analyze/nutrition`, {
+      const response = await fetch(`${API_BASE_URL}/analyze/label`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -257,23 +341,42 @@ function App() {
         );
       }
       if (!response.ok) {
-        throw new Error(getApiErrorMessage(responseData, response.status));
+        throw new Error(
+          getApiErrorMessage(responseData, response.status, "Label analysis")
+        );
       }
-      setAnalysisResult(responseData);
+      if (analysisRequestIdRef.current === requestId) {
+        setAnalysisResult(responseData);
+      }
     } catch (error) {
-      setAnalysisError(
-        error instanceof TypeError
-          ? `Could not connect to the Label Lens API at ${API_BASE_URL}. Check that the backend is running and the API URL is correct.`
-          : error.message
-      );
+      if (analysisRequestIdRef.current === requestId) {
+        setAnalysisError(
+          error instanceof TypeError
+            ? `Could not connect to the Label Lens API at ${API_BASE_URL}. Check that the backend is running and the API URL is correct.`
+            : error.message
+        );
+      }
     } finally {
-      setIsAnalyzing(false);
+      if (analysisRequestIdRef.current === requestId) {
+        setIsAnalyzing(false);
+      }
     }
   }
 
   function updateAnalysisValue(event) {
     const { name, value } = event.target;
     setAnalysisValues((current) => ({ ...current, [name]: value }));
+    invalidateAnalysis();
+  }
+
+  function updateAnalysisBasis(value) {
+    setAnalysisBasis(value);
+    invalidateAnalysis();
+  }
+
+  function updateAnalysisServingSize(value) {
+    setAnalysisServingSize(value);
+    invalidateAnalysis();
   }
 
   return (
@@ -449,6 +552,7 @@ function App() {
                   <option value="">Not established — choose basis</option>
                   <option value="per_serving">Per serving</option>
                   <option value="per_100g">Per 100 g</option>
+                  <option value="per_100ml">Per 100 ml</option>
                 </select>
                 <small>
                   {review.basis
@@ -517,14 +621,33 @@ function App() {
               </span>
             </div>
 
-            <button className="submit-button confirm-button" type="submit">
-              Confirm reviewed values
-              <span aria-hidden="true">→</span>
+            <button
+              className="submit-button confirm-button"
+              type="submit"
+              disabled={isAnalyzing}
+            >
+              {isAnalyzing
+                ? "Analyzing label…"
+                : analysisError
+                  ? "Retry analysis"
+                  : "Confirm reviewed values"}
+              {!isAnalyzing && <span aria-hidden="true">→</span>}
             </button>
             {isConfirmed && (
               <p className="success-message" role="status">
-                Review confirmed. The values have been copied to the nutrition
-                analysis form below.
+                {isAnalyzing
+                  ? "Review confirmed. Analyzing the reviewed values…"
+                  : analysisError
+                    ? "Review confirmed. Analysis failed; use the button above to retry."
+                    : analysisResult
+                      ? "Review confirmed and analysis is complete."
+                      : "Review confirmed. Analysis is starting…"}
+              </p>
+            )}
+            {analysisError && (
+              <p className="form-error" role="alert">
+                <span aria-hidden="true">!</span>
+                {analysisError}
               </p>
             )}
           </form>
@@ -545,8 +668,8 @@ function App() {
             <h2>Nutrition snapshot</h2>
             <p>
               {isConfirmed
-                ? "Check the confirmed values, then run the existing analysis."
-                : "Enter values manually, or upload and confirm a label above."}
+                ? "Your confirmed label values and ingredients are being analyzed."
+                : "Enter values manually, or upload, review, and confirm a label above. Confirming reviewed values starts the analysis automatically."}
             </p>
           </div>
         </div>
@@ -560,7 +683,8 @@ function App() {
                   name="analysisBasis"
                   value="per_serving"
                   checked={analysisBasis === "per_serving"}
-                  onChange={() => setAnalysisBasis("per_serving")}
+                  disabled={Boolean(extraction)}
+                  onChange={() => updateAnalysisBasis("per_serving")}
                 />
                 <span>Per serving</span>
               </label>
@@ -570,12 +694,46 @@ function App() {
                   name="analysisBasis"
                   value="per_100g"
                   checked={analysisBasis === "per_100g"}
-                  onChange={() => setAnalysisBasis("per_100g")}
+                  disabled={Boolean(extraction)}
+                  onChange={() => updateAnalysisBasis("per_100g")}
                 />
                 <span>Per 100 g</span>
               </label>
+              <label className={analysisBasis === "per_100ml" ? "selected" : ""}>
+                <input
+                  type="radio"
+                  name="analysisBasis"
+                  value="per_100ml"
+                  checked={analysisBasis === "per_100ml"}
+                  disabled={Boolean(extraction)}
+                  onChange={() => updateAnalysisBasis("per_100ml")}
+                />
+                <span>Per 100 ml</span>
+              </label>
+              <label className={!analysisBasis ? "selected" : ""}>
+                <input
+                  type="radio"
+                  name="analysisBasis"
+                  value=""
+                  checked={!analysisBasis}
+                  disabled={Boolean(extraction)}
+                  onChange={() => updateAnalysisBasis("")}
+                />
+                <span>Not established</span>
+              </label>
             </div>
           </fieldset>
+          <label className="input-group serving-size-input" htmlFor="analysis-serving-size">
+            <span className="input-label">Serving size (needed for per-serving assessment)</span>
+            <input
+              id="analysis-serving-size"
+              type="text"
+              value={analysisServingSize}
+              disabled={Boolean(extraction)}
+              onChange={(event) => updateAnalysisServingSize(event.target.value)}
+              placeholder="For example, 30 g"
+            />
+          </label>
           <div className="nutrient-inputs">
             {nutrientFields.map((field) => (
               <label className="input-group" htmlFor={`analysis-${field.name}`} key={field.name}>
@@ -589,6 +747,7 @@ function App() {
                     step="any"
                     inputMode="decimal"
                     value={analysisValues[field.name]}
+                    disabled={Boolean(extraction)}
                     onChange={updateAnalysisValue}
                     placeholder="Leave blank if unknown"
                   />
@@ -597,54 +756,215 @@ function App() {
               </label>
             ))}
           </div>
-          {analysisError && (
+          {extraction && !confirmedLabel && (
+            <p className="analysis-next-step" role="status">
+              Confirm the reviewed label details above to analyze those values automatically.
+            </p>
+          )}
+          {!extraction && (
+            <p className="analysis-next-step" role="status">
+              Results include excess nutrient assessments and ingredient/additive insights.
+            </p>
+          )}
+          {!extraction && analysisError && (
             <p className="form-error" role="alert">
               <span aria-hidden="true">!</span>
               {analysisError}
             </p>
           )}
-          <button className="submit-button" type="submit" disabled={isAnalyzing}>
-            {isAnalyzing ? "Analyzing…" : "Analyze nutrition"}
-            {!isAnalyzing && <span aria-hidden="true">→</span>}
-          </button>
+          {!extraction && (
+            <button
+              className="submit-button"
+              type="submit"
+              disabled={isAnalyzing}
+            >
+              {isAnalyzing ? "Analyzing label…" : "Analyze label"}
+              {!isAnalyzing && <span aria-hidden="true">→</span>}
+            </button>
+          )}
           {analysisResult && (
-            <div className="analysis-result" aria-live="polite">
+            <div
+              ref={resultSectionRef}
+              className="analysis-result"
+              aria-live="polite"
+              tabIndex="-1"
+            >
+              <section
+                className="health-score-card"
+                aria-labelledby="health-score-title"
+              >
+                <div className="health-score-heading">
+                  <div>
+                    <p className="step-label">NUTRIENT SUMMARY</p>
+                    <h3 id="health-score-title">
+                      Experimental Label Lens Health Score
+                    </h3>
+                  </div>
+                  {analysisResult.health_score?.status === "available" ? (
+                    <div className="health-score-value">
+                      <strong>{analysisResult.health_score.score}</strong>
+                      <span>out of 100</span>
+                    </div>
+                  ) : (
+                    <strong className="health-score-unavailable">
+                      Score unavailable
+                    </strong>
+                  )}
+                </div>
+                {analysisResult.health_score?.status === "available" && (
+                  <div
+                    className="health-score-progress"
+                    role="progressbar"
+                    aria-label="Experimental Label Lens Health Score"
+                    aria-valuemin="0"
+                    aria-valuemax="100"
+                    aria-valuenow={analysisResult.health_score.score}
+                    aria-valuetext={`${analysisResult.health_score.score} out of 100`}
+                  >
+                    <span
+                      style={{
+                        width: `${analysisResult.health_score.score}%`,
+                      }}
+                    />
+                  </div>
+                )}
+                <p className="score-completeness">
+                  {analysisResult.health_score?.data_completeness?.text ??
+                    "Nutrient completeness unavailable"}
+                </p>
+                {analysisResult.health_score?.status === "available" ? (
+                  <p className="score-explanation">
+                    {analysisResult.health_score.explanation}
+                  </p>
+                ) : (
+                  <p className="score-unavailable-reason" role="status">
+                    {analysisResult.health_score?.explanation ??
+                      "The backend did not return a health-score assessment."}
+                  </p>
+                )}
+                {analysisResult.health_score?.factors?.length > 0 && (
+                  <ul className="score-factor-list">
+                    {analysisResult.health_score.factors.map((factor) => (
+                      <li key={factor.category}>{factor.explanation}</li>
+                    ))}
+                  </ul>
+                )}
+                <p className="health-score-disclaimer">
+                  Experimental Label Lens Health Score — not an official
+                  health grade or medical assessment. This prototype formula
+                  is not a validated measure of overall health. Ingredient
+                  flags are separate and do not affect this score.
+                </p>
+              </section>
+              <h3>Excess Nutrient Detection</h3>
               <p className="percentage-context">
-                {analysisResult.percentage_context}
+                Statuses compare label values with configurable Label Lens
+                project references, not official health grades.
               </p>
-              <div className="result-list">
-                {nutrientFields.map((field) => {
-                  const resultKey =
-                    field.name === "saturated_fat_g"
-                      ? "saturated_fat"
-                      : field.name.replace(/_g$|_mg$/, "");
-                  const nutrient = analysisResult.nutrients?.[resultKey];
-                  return nutrient ? (
-                    <div className="result-row" key={field.name}>
-                      <div className="result-main">
-                        <div>
-                          <span className="result-name">{field.label}</span>
-                          <span className="result-value">
-                            {formatValue(nutrient.value)}{" "}
-                            {nutrient.value == null ? "" : field.unit}
-                          </span>
-                        </div>
-                        <span className={`level-badge level-${nutrient.level}`}>
-                          {nutrient.level}
+              <div className="result-list nutrient-assessments">
+                {analysisResult.excess_nutrients?.map((nutrient) => (
+                  <article className="result-row" key={nutrient.nutrient}>
+                    <div className="result-main">
+                      <div>
+                        <span className="result-name">
+                          {nutrientLabels[nutrient.nutrient] ?? nutrient.nutrient}
+                        </span>
+                        <span className="result-value">
+                          {formatValue(nutrient.value)}
+                          {nutrient.value == null || !nutrient.unit
+                            ? ""
+                            : ` ${nutrient.unit}`}
+                          {nutrient.basis ? ` · ${formatBasis(nutrient.basis)}` : ""}
                         </span>
                       </div>
-                      <div className="percentage-line">
-                        <span>Daily-reference contribution</span>
-                        <strong>
-                          {nutrient.percentage_of_daily_limit == null
-                            ? "—"
-                            : `${nutrient.percentage_of_daily_limit}%`}
-                        </strong>
-                      </div>
+                      <span
+                        className={`level-badge ${nutrient.needs_review ? "level-unknown" : `level-${nutrient.status.toLowerCase().replaceAll(" ", "-")}`}`}
+                      >
+                        {nutrient.status}
+                      </span>
                     </div>
-                  ) : null;
-                })}
+                    {nutrient.equivalent_value != null && (
+                      <p className="converted-equivalent">
+                        Serving-size equivalent: {nutrient.equivalent_value}{" "}
+                        {nutrient.unit} {formatBasis(nutrient.equivalent_basis)}
+                        {" "}· calculated, not separately listed on the label
+                      </p>
+                    )}
+                    <p className="assessment-explanation">
+                      {nutrient.explanation}
+                    </p>
+                    {nutrient.threshold_explanation && (
+                      <p className="percentage-context">
+                        <strong>Project threshold:</strong>{" "}
+                        {nutrient.threshold_explanation}
+                      </p>
+                    )}
+                    {nutrient.needs_review && (
+                      <p className="review-indicator">
+                        Review the label value, unit, serving size, or basis.
+                      </p>
+                    )}
+                  </article>
+                ))}
               </div>
+              <section className="ingredient-analysis" aria-labelledby="ingredient-analysis-title">
+                <div className="ingredient-analysis-heading">
+                  <h3 id="ingredient-analysis-title">Ingredient/additive analysis</h3>
+                  <span className="concern-badge concern-neutral">
+                    {evidenceConcerns.length} evidence-based{" "}
+                    {evidenceConcerns.length === 1 ? "concern" : "concerns"}
+                  </span>
+                </div>
+                {evidenceConcerns.length > 0 ? (
+                  <ul className="ingredient-insight-list">
+                    {evidenceConcerns.map((item, index) => (
+                      <li className="ingredient-insight" key={`${item.ingredient}-${index}`}>
+                        <div className="ingredient-insight-heading">
+                          <strong>{item.matched_name ?? item.ingredient}</strong>
+                          <span className={`concern-badge ${getConcernClass(item)}`}>
+                            {item.concern_level}
+                          </span>
+                        </div>
+                        {item.matched_name &&
+                          item.matched_name !== item.ingredient && (
+                          <p className="ingredient-raw-name">Label text: {item.ingredient}</p>
+                        )}
+                        <p>{item.explanation}</p>
+                        {item.evidence_source && (
+                          <p className="evidence-reference">
+                            Source:{" "}
+                            {item.source_url ? (
+                              <a href={item.source_url} target="_blank" rel="noreferrer">
+                                {item.evidence_source}
+                              </a>
+                            ) : item.evidence_source}
+                          </p>
+                        )}
+                        {item.evidence_context && (
+                          <p className="evidence-context">
+                            Evidence context: {item.evidence_context}
+                          </p>
+                        )}
+                        {item.needs_review && (
+                          <p className="review-indicator">Review this ingredient text; the match is uncertain.</p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <>
+                    <p className="muted-copy">
+                      No evidence-based ingredient concerns identified from
+                      the ingredients we could assess.
+                    </p>
+                    <p className="evidence-context">
+                      This does not guarantee that the product is risk-free.
+                      Some ingredients may be unassessed or have insufficient
+                      evidence in the current knowledge base.
+                    </p>
+                  </>
+                )}
+              </section>
               <p className="disclaimer">{analysisResult.note}</p>
             </div>
           )}

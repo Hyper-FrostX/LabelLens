@@ -972,6 +972,289 @@
 
 .analysis-result {
   margin-top: 25px;
+  scroll-margin-top: 20px;
+}
+
+.health-score-card {
+  padding: 19px;
+  border: 1px solid #dce9de;
+  border-radius: 15px;
+  background: linear-gradient(135deg, #f5faf5, #fff);
+}
+
+.health-score-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.health-score-heading .step-label {
+  margin: 0 0 5px;
+}
+
+.health-score-heading h3 {
+  margin: 0;
+  color: #2d4938;
+  font-size: 17px;
+}
+
+.health-score-value {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  color: #3b6548;
+}
+
+.health-score-value strong {
+  font-size: 32px;
+  letter-spacing: -1px;
+}
+
+.health-score-value span {
+  color: #728277;
+  font-size: 10px;
+}
+
+.health-score-unavailable {
+  color: #715b2e;
+  font-size: 12px;
+}
+
+.health-score-progress {
+  height: 9px;
+  overflow: hidden;
+  margin-top: 13px;
+  border-radius: 999px;
+  background: #e7eee8;
+}
+
+.health-score-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #4e8660;
+  transition: width 220ms ease;
+}
+
+.score-completeness,
+.score-explanation,
+.score-unavailable-reason,
+.health-score-disclaimer {
+  margin: 10px 0 0;
+  color: #65766a;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.score-completeness {
+  color: #3f624a;
+  font-weight: 750;
+}
+
+.score-unavailable-reason {
+  padding: 9px 11px;
+  border-radius: 9px;
+  background: #fff8e9;
+  color: #785b26;
+}
+
+.score-factor-list {
+  display: grid;
+  gap: 5px;
+  margin: 11px 0 0;
+  padding-left: 17px;
+  color: #65766a;
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.health-score-disclaimer {
+  padding-top: 10px;
+  border-top: 1px solid #e8eee8;
+  color: #718077;
+  font-size: 10px;
+}
+
+.manual-analysis .serving-size-input {
+  margin: 18px 0;
+}
+
+.manual-analysis .serving-size-input > input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid #e2e9e2;
+  border-radius: 10px;
+  background: #fff;
+  color: #34483b;
+}
+
+.manual-analysis .serving-size-input {
+  margin: 18px 0;
+}
+
+.manual-analysis .serving-size-input > input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid #e2e9e2;
+  border-radius: 10px;
+  background: #fff;
+  color: #34483b;
+}
+
+.manual-analysis input:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.analysis-next-step {
+  margin: 16px 0 0;
+  padding: 11px 13px;
+  border: 1px solid #e6ece6;
+  border-radius: 10px;
+  background: #f7faf7;
+  color: #5f7164;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.analysis-result h3 {
+  margin: 24px 0 8px;
+  color: #34483b;
+  font-size: 15px;
+}
+
+.analysis-result > h3:first-of-type {
+  margin-top: 0;
+}
+
+.nutrient-assessments .result-row {
+  padding: 15px 0;
+}
+
+.assessment-explanation,
+.ingredient-insight > p {
+  margin: 9px 0 0;
+  color: #6f7e73;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.converted-equivalent {
+  margin: 8px 0 0;
+  color: #556d5c;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.level-moderate {
+  background: #fff6e7;
+  color: #8a5d0b;
+}
+
+.level-lower-contribution {
+  background: #edf6ef;
+  color: #356b48;
+}
+
+.review-indicator {
+  margin: 9px 0 0;
+  color: #825d20;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.ingredient-analysis {
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid #edf0ed;
+}
+
+.ingredient-analysis-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ingredient-analysis h3 {
+  margin-top: 0;
+}
+
+.ingredient-insight-list {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ingredient-insight {
+  padding: 13px;
+  border: 1px solid #e9eeea;
+  border-radius: 12px;
+  background: #fbfcfb;
+}
+
+.ingredient-insight-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ingredient-insight-heading > strong {
+  color: #34483b;
+  font-size: 12px;
+}
+
+.concern-badge {
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 750;
+}
+
+.concern-neutral {
+  background: #f0f2f1;
+  color: #59675e;
+}
+
+.concern-context {
+  background: #fff6e7;
+  color: #805a14;
+}
+
+.concern-established {
+  background: #fff0eb;
+  color: #983f2c;
+}
+
+.concern-review {
+  background: #f0f2f1;
+  color: #59675e;
+}
+
+.ingredient-insight > .ingredient-raw-name {
+  margin-top: 5px;
+  color: #89938b;
+}
+
+.evidence-reference a {
+  color: #356b48;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.evidence-context {
+  padding-left: 9px;
+  border-left: 2px solid #dce5dc;
+  color: #718077 !important;
+  font-size: 10px !important;
 }
 
 @media (max-width: 820px) {
@@ -1072,6 +1355,15 @@
 
   .confirm-button {
     max-width: none;
+  }
+
+  .ingredient-insight-heading {
+    flex-direction: column;
+  }
+
+  .health-score-heading {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .success-message {
