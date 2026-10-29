@@ -78,10 +78,14 @@ function isAcceptedImage(file) {
 }
 
 function prepareReviewData(data) {
+  const basis = data.basis || "per_serving";
+  const servingSize =
+    data.serving_size_text ||
+    (basis === "per_serving" ? "30 g" : "");
   return {
     productName: data.product_name?.value ?? "",
-    basis: data.basis ?? "",
-    servingSize: data.serving_size_text ?? "",
+    basis: basis,
+    servingSize: servingSize,
     nutrients: Object.fromEntries(
       nutrientFields.map(({ name }) => [
         name,
@@ -96,6 +100,13 @@ function prepareReviewData(data) {
       ? data.review_required_fields
       : [],
     ocrText: typeof data.ocr_text === "string" ? data.ocr_text : "",
+    foodSuggestions: Array.isArray(data.food_suggestions)
+      ? data.food_suggestions
+      : [],
+    dietaryAdvice:
+      typeof data.dietary_advice === "string" ? data.dietary_advice : "",
+    visionProvider: data.vision_provider || "gemini",
+    modelUsed: data.model_used || "gemini",
   };
 }
 
@@ -274,14 +285,20 @@ function App() {
     }
 
     setUploadError("");
+    const activeBasis = review.basis || "per_serving";
+    const confirmedServingSize =
+      review.servingSize.trim() || (activeBasis === "per_serving" ? "30 g" : "");
     setAnalysisValues(nextValues);
-    setAnalysisBasis(review.basis);
-    setAnalysisServingSize(review.servingSize);
+    setAnalysisBasis(activeBasis);
+    setAnalysisServingSize(confirmedServingSize);
     const snapshot = {
+      productName: review.productName,
       nutrients: nextValues,
-      basis: review.basis,
-      servingSize: review.servingSize,
+      basis: activeBasis,
+      servingSize: confirmedServingSize,
       ingredientsText: review.ingredientsText,
+      foodSuggestions: review.foodSuggestions,
+      dietaryAdvice: review.dietaryAdvice,
     };
     setConfirmedLabel(snapshot);
     setIsConfirmed(true);
@@ -304,12 +321,25 @@ function App() {
     }
 
     const valuesToAnalyze = valuesSnapshot?.nutrients ?? analysisValues;
+    const activeBasis =
+      (valuesSnapshot?.basis ?? analysisBasis) || "per_serving";
+    const rawServingSize = (
+      valuesSnapshot?.servingSize ?? analysisServingSize
+    ).trim();
+    const resolvedServingSize =
+      rawServingSize || (activeBasis === "per_serving" ? "30 g" : null);
+
     const payload = {
-      basis: (valuesSnapshot?.basis ?? analysisBasis) || null,
-      serving_size_text:
-        (valuesSnapshot?.servingSize ?? analysisServingSize).trim() || null,
+      product_name:
+        (valuesSnapshot?.productName || review?.productName || "").trim() || null,
+      basis: activeBasis,
+      serving_size_text: resolvedServingSize,
       ingredients_text:
-        valuesSnapshot?.ingredientsText.trim() || null,
+        (valuesSnapshot?.ingredientsText || review?.ingredientsText || "").trim() || null,
+      food_suggestions:
+        valuesSnapshot?.foodSuggestions || review?.foodSuggestions || null,
+      dietary_advice:
+        valuesSnapshot?.dietaryAdvice || review?.dietaryAdvice || null,
     };
     for (const field of nutrientFields) {
       const rawValue = valuesToAnalyze[field.name].trim();
@@ -605,12 +635,12 @@ function App() {
                 <input
                   type="text"
                   value={review.servingSize}
-                  placeholder="Not found on label"
+                  placeholder="e.g. 30 g or 1 bar (45g)"
                   onChange={(event) =>
                     updateReview("servingSize", event.target.value)
                   }
                 />
-                <small>Extracted text · please verify</small>
+                <small>Serving amount (e.g. 30 g) used for health score</small>
               </label>
 
               <label className="review-field">
@@ -690,6 +720,17 @@ function App() {
                   : "None reported"}
               </span>
             </div>
+
+            {review.foodSuggestions?.length > 0 && (
+              <div className="review-suggestions-teaser">
+                <span className="teaser-icon" aria-hidden="true">💡</span>
+                <p className="teaser-text">
+                  <strong>AI Vision detected {review.productName || "this product"}:</strong>{" "}
+                  {review.foodSuggestions.length} healthy food alternatives &amp; smart swaps identified.
+                  Confirm reviewed values to see recommendations and nutrition breakdown below.
+                </p>
+              </div>
+            )}
 
             <button
               className="submit-button confirm-button"
@@ -1035,6 +1076,72 @@ function App() {
                   </>
                 )}
               </section>
+
+              {analysisResult.food_suggestions?.length > 0 && (
+                <section
+                  className="food-suggestions-section"
+                  aria-labelledby="food-suggestions-title"
+                >
+                  <div className="food-suggestions-header">
+                    <div className="food-suggestions-title-group">
+                      <span className="suggestion-badge-icon" aria-hidden="true">
+                        🌱
+                      </span>
+                      <div>
+                        <p className="step-label">SMART NUTRITION CHOICES</p>
+                        <h3 id="food-suggestions-title">
+                          Recommended Food Suggestions &amp; Healthy Swaps
+                        </h3>
+                      </div>
+                    </div>
+                    <span className="ai-vision-pill">
+                      ⚡ Powered by Gemini Vision
+                    </span>
+                  </div>
+
+                  {analysisResult.dietary_advice && (
+                    <div className="dietary-advice-card">
+                      <span className="advice-icon" aria-hidden="true">
+                        💡
+                      </span>
+                      <div className="advice-content">
+                        <strong>Personalized Nutrition Advice</strong>
+                        <p>{analysisResult.dietary_advice}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="food-suggestions-grid">
+                    {analysisResult.food_suggestions.map((item, index) => (
+                      <article
+                        className="food-suggestion-card"
+                        key={`${item.name}-${index}`}
+                      >
+                        <div className="suggestion-card-top">
+                          <span className="suggestion-category-tag">
+                            {item.category}
+                          </span>
+                          <span className="suggestion-icon" aria-hidden="true">
+                            🥗
+                          </span>
+                        </div>
+                        <h4 className="suggestion-food-name">{item.name}</h4>
+                        <p className="suggestion-reason">{item.reason}</p>
+                        {item.highlights?.length > 0 && (
+                          <div className="suggestion-highlights">
+                            {item.highlights.map((h, i) => (
+                              <span className="highlight-pill" key={i}>
+                                ✓ {h}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              )}
+
               <p className="disclaimer">{analysisResult.note}</p>
             </div>
           )}

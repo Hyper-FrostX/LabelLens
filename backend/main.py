@@ -1,7 +1,8 @@
 
 import math
-from typing import Literal
+from typing import Any, Literal
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
@@ -13,6 +14,10 @@ from app.services.additive_detector import (
     detect_additives,
     get_curated_additives,
 )
+from app.services.gemini_vision import (
+    extract_label_with_vision,
+    generate_fallback_food_suggestions,
+)
 from app.services.ingredient_analysis import analyze_ingredients
 from app.services.label_parser import parse_label_text, split_ingredients_text
 from app.services.nutrition import (
@@ -20,6 +25,8 @@ from app.services.nutrition import (
     analyze_nutrition,
     calculate_health_score,
 )
+
+load_dotenv()
 
 
 MAX_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024
@@ -65,6 +72,7 @@ class IngredientAnalysisInput(BaseModel):
 
 
 class LabelAnalysisInput(BaseModel):
+    product_name: str | None = Field(default=None, max_length=200)
     sugar_g: float | None = Field(default=None, ge=0)
     added_sugar_g: float | None = Field(default=None, ge=0)
     sodium_mg: float | None = Field(default=None, ge=0)
@@ -76,6 +84,8 @@ class LabelAnalysisInput(BaseModel):
     sodium_unit: str | None = Field(default=None, max_length=20)
     saturated_fat_unit: str | None = Field(default=None, max_length=20)
     ingredients_text: str | None = Field(default=None, max_length=20000)
+    food_suggestions: list[dict[str, Any]] | None = None
+    dietary_advice: str | None = None
 
     @field_validator(
         "sugar_g",
@@ -153,7 +163,28 @@ def label_analysis_endpoint(data: LabelAnalysisInput):
         "sodium": data.sodium_unit,
         "saturated_fat": data.saturated_fat_unit,
     }
+
+    food_suggestions = data.food_suggestions
+    dietary_advice = data.dietary_advice
+    if not food_suggestions:
+        food_suggestions, default_advice = generate_fallback_food_suggestions(
+            product_name=data.product_name,
+            nutrients={
+                "sugar_g": data.sugar_g,
+                "added_sugar_g": data.added_sugar_g,
+                "sodium_mg": data.sodium_mg,
+                "saturated_fat_g": data.saturated_fat_g,
+            },
+            ingredients_text=data.ingredients_text,
+        )
+        dietary_advice = dietary_advice or default_advice
+
+    serving_size_text = data.serving_size_text
+    if data.basis == "per_serving" and not (serving_size_text and serving_size_text.strip()):
+        serving_size_text = "30 g"
+
     return {
+        "product_name": data.product_name,
         "basis": data.basis,
         "excess_nutrients": analyze_excess_nutrients(
             sugar_g=data.sugar_g,
@@ -162,7 +193,7 @@ def label_analysis_endpoint(data: LabelAnalysisInput):
             saturated_fat_g=data.saturated_fat_g,
             basis=data.basis,
             units=units,
-            serving_size_text=data.serving_size_text,
+            serving_size_text=serving_size_text,
         ),
         "health_score": calculate_health_score(
             sugar_g=data.sugar_g,
@@ -171,12 +202,14 @@ def label_analysis_endpoint(data: LabelAnalysisInput):
             saturated_fat_g=data.saturated_fat_g,
             basis=data.basis,
             units=units,
-            serving_size_text=data.serving_size_text,
+            serving_size_text=serving_size_text,
         ),
         "ingredient_analysis": analyze_ingredients(
             ingredients,
             ingredients_available=data.ingredients_text is not None,
         ),
+        "food_suggestions": food_suggestions,
+        "dietary_advice": dietary_advice,
         "note": (
             "These project-defined nutrient references and curated "
             "ingredient notes are informational. They are not medical "
@@ -189,8 +222,8 @@ def label_analysis_endpoint(data: LabelAnalysisInput):
 @app.post(
     "/extract/label",
     description=(
-        "Extract label text and candidate nutrition fields from one local "
-        "image upload. Maximum upload size is 10 MiB."
+        "Extract label text, candidate nutrition fields, and food suggestions "
+        "from one local image upload. Maximum upload size is 10 MiB."
     ),
 )
 async def extract_label_endpoint(file: UploadFile = File(...)):
@@ -211,12 +244,14 @@ async def extract_label_endpoint(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail=str(error)) from error
 
     try:
-        ocr_text = await run_in_threadpool(label_ocr.extract_text, image_bytes)
+        parsed = await run_in_threadpool(extract_label_with_vision, image_bytes)
+    except label_ocr.UnsupportedImageFormatError as error:
+        raise HTTPException(status_code=415, detail=str(error)) from error
+    except label_ocr.ImageTooLargeError as error:
+        raise HTTPException(status_code=413, detail=str(error)) from error
+    except label_ocr.InvalidImageError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
     except label_ocr.OCRServiceError as error:
         raise HTTPException(status_code=503, detail=str(error)) from error
 
-    parsed = parse_label_text(ocr_text)
-    parsed["additive_analysis"] = detect_additives(
-        parsed.get("ingredients") or parsed.get("ingredients_text")
-    )
     return parsed
