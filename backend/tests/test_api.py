@@ -244,14 +244,19 @@ def test_knowledge_base_endpoint_returns_additives_and_filters():
     response = client.get("/additives/knowledge-base")
     assert response.status_code == 200
     data = response.json()
-    assert data["total"] >= 15
+    assert data["total"] == 31
     assert len(data["additives"]) == data["total"]
 
     # Filter by concern level
-    resp_high = client.get("/additives/knowledge-base?concern_level=high")
-    assert resp_high.status_code == 200
-    high_data = resp_high.json()
-    assert all(a["concern_level"] == "high" for a in high_data["additives"])
+    resp_review = client.get(
+        "/additives/knowledge-base?concern_level=review_required"
+    )
+    assert resp_review.status_code == 200
+    review_data = resp_review.json()
+    assert all(
+        a["verification_status"] == "REVIEW_REQUIRED"
+        for a in review_data["additives"]
+    )
 
     # Search query
     resp_search = client.get("/additives/knowledge-base?query=ascorbic")
@@ -276,10 +281,11 @@ def test_analyze_ingredients_endpoint_with_list():
     result = response.json()
     assert result["total_ingredients_scanned"] == 4
     assert result["total_additives_detected"] == 3
-    assert result["overall_concern"] == "high"
-    assert result["counts"]["high"] == 1
-    assert result["counts"]["moderate"] == 1
-    assert result["counts"]["low"] == 1
+    assert result["overall_concern"] == "review_required"
+    assert result["counts"]["high"] == 0
+    assert result["counts"]["moderate"] == 0
+    assert result["counts"]["low"] == 0
+    assert result["counts"]["review_required"] == 3
 
     # Verify each additive has required fields
     for item in result["matched_additives"]:
@@ -287,6 +293,7 @@ def test_analyze_ingredients_endpoint_with_list():
         assert "concern_level" in item
         assert "evidence_source" in item
         assert "regulatory_status" in item
+        assert "verification_status" in item
 
 
 def test_analyze_ingredients_endpoint_with_text():
@@ -297,9 +304,9 @@ def test_analyze_ingredients_endpoint_with_text():
     assert response.status_code == 200
     result = response.json()
     assert result["total_additives_detected"] == 2
-    assert result["overall_concern"] == "low"
-    assert result["counts"]["low"] == 2
-    assert "Not every additive is harmful" in result["guidance_note"]
+    assert result["overall_concern"] == "review_required"
+    assert result["counts"]["review_required"] == 2
+    assert "does not measure product concentration" in result["guidance_note"]
 
 
 def test_label_analysis_endpoint_returns_nutrients_and_conservative_ingredient_matches():
@@ -339,16 +346,15 @@ def test_label_analysis_endpoint_returns_nutrients_and_conservative_ingredient_m
 
     insights = result["ingredient_analysis"]["ingredients"]
     assert insights[1]["matched_name"] == "Ascorbic acid"
-    assert (
-        insights[1]["concern_level"]
-        == "No specific concern identified in current knowledge base"
-    )
-    assert insights[1]["evidence_source"]
-    assert insights[1]["source_url"].startswith("https://")
-    assert "not evidence of a specific health risk" in (
-        insights[2]["evidence_context"]
-    )
-    assert insights[2]["concern_status"] == "insufficient_evidence"
+    assert insights[1]["verification_status"] == "REVIEW_REQUIRED"
+    assert insights[1]["concern_status"] == "unknown"
+    assert insights[1]["evidence_source"] is None
+    assert insights[1]["source_url"] is None
+    assert insights[2]["verification_status"] == "REVIEW_REQUIRED"
+    assert insights[2]["concern_status"] == "unknown"
+    assert insights[2]["source_references"]
+    assert all(not source["verified"] for source in insights[2]["source_references"])
+    assert insights[3]["verification_status"] == "PROVISIONAL"
     assert insights[3]["concern_level"] == (
         "Established hazard in a specific context"
     )
@@ -482,11 +488,10 @@ def test_label_analysis_does_not_classify_every_additive_as_harmful():
 
     assert response.status_code == 200
     results = response.json()["ingredient_analysis"]["ingredients"]
-    assert (
-        results[0]["concern_level"]
-        == "No specific concern identified in current knowledge base"
-    )
-    assert results[1]["concern_status"] == "insufficient_evidence"
+    assert results[0]["verification_status"] == "REVIEW_REQUIRED"
+    assert results[0]["concern_status"] == "unknown"
+    assert results[1]["verification_status"] == "REVIEW_REQUIRED"
+    assert results[1]["concern_status"] == "unknown"
     assert response.json()["ingredient_analysis"]["evidence_concerns"] == []
     assert all(item["concern_level"] != "Harmful" for item in results)
 

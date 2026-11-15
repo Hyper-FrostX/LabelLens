@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import Spinner from "./ui/Spinner";
+import Icon from "./ui/Icon";
 
 export default function KnowledgeBaseExplorer({ apiBaseUrl }) {
   const [additives, setAdditives] = useState([]);
@@ -51,10 +53,9 @@ export default function KnowledgeBaseExplorer({ apiBaseUrl }) {
           <span className="optional-label">{additives.length} Entries</span>
         </div>
         <p className="kb-intro-text">
-          Browse our scientifically vetted catalog of common food additives and ingredients. Each
-          profile includes its primary functional purpose in food manufacturing, scientific
-          evidence from regulatory agencies (EFSA, FDA, WHO/JECFA), and clear guidance on safety
-          versus health concerns.
+          Browse catalog matches with explicit source-verification status. Unverified legacy
+          claims are withheld; verified regulatory or scientific facts are jurisdiction- and
+          context-specific and do not determine product exposure or safety.
         </p>
 
         {/* Filter & Search Bar */}
@@ -69,26 +70,21 @@ export default function KnowledgeBaseExplorer({ apiBaseUrl }) {
             </button>
             <button
               type="button"
-              className={`filter-pill filter-high ${filterLevel === "high" ? "active" : ""}`}
-              onClick={() => setFilterLevel("high")}
-            >
-              High Concern
-            </button>
-            <button
-              type="button"
-              className={`filter-pill filter-moderate ${
-                filterLevel === "moderate" ? "active" : ""
+              className={`filter-pill filter-review-required ${
+                filterLevel === "review_required" ? "active" : ""
               }`}
-              onClick={() => setFilterLevel("moderate")}
+              onClick={() => setFilterLevel("review_required")}
             >
-              Moderate Concern
+              Review Required
             </button>
             <button
               type="button"
-              className={`filter-pill filter-low ${filterLevel === "low" ? "active" : ""}`}
-              onClick={() => setFilterLevel("low")}
+              className={`filter-pill filter-informational ${
+                filterLevel === "informational" ? "active" : ""
+              }`}
+              onClick={() => setFilterLevel("informational")}
             >
-              Safe / Functional
+              Verified Information
             </button>
           </div>
 
@@ -107,7 +103,7 @@ export default function KnowledgeBaseExplorer({ apiBaseUrl }) {
                 onClick={() => setSearchQuery("")}
                 aria-label="Clear search"
               >
-                ✕
+                <Icon name="close" size={14} />
               </button>
             )}
           </div>
@@ -123,7 +119,7 @@ export default function KnowledgeBaseExplorer({ apiBaseUrl }) {
 
       {isLoading ? (
         <div className="kb-loading">
-          <span className="spinner" aria-hidden="true" />
+          <Spinner />
           <p>Loading curated knowledge base…</p>
         </div>
       ) : additives.length === 0 ? (
@@ -143,13 +139,16 @@ export default function KnowledgeBaseExplorer({ apiBaseUrl }) {
       ) : (
         <div className="kb-grid">
           {additives.map((item) => {
-            const levelClass = `level-${item.concern_level}`;
+            const levelClass =
+              item.verification_status === "REVIEW_REQUIRED"
+                ? "level-review-required"
+                : "level-informational";
             const levelText =
-              item.concern_level === "high"
-                ? "High Concern"
-                : item.concern_level === "moderate"
-                ? "Moderate Concern"
-                : "Safe / Functional";
+              item.verification_status === "REVIEW_REQUIRED"
+                ? "Review required"
+                : item.verification_status === "PROVISIONAL"
+                ? "Provisional"
+                : "Verified facts";
 
             return (
               <article className={`kb-card ${levelClass}`} key={item.id}>
@@ -167,17 +166,19 @@ export default function KnowledgeBaseExplorer({ apiBaseUrl }) {
                 </div>
 
                 <div className="kb-card-section">
-                  <span className="kb-section-label">Scientific Evidence & Health Notes:</span>
+                  <span className="kb-section-label">Evidence and limitations:</span>
                   <p className="kb-section-content evidence-summary">{item.concern_summary}</p>
                 </div>
 
                 <div className="kb-card-section">
-                  <span className="kb-section-label">Regulatory Status:</span>
+                  <span className="kb-section-label">Regulatory Reference:</span>
                   <p className="kb-section-content regulatory-val">{item.regulatory_status}</p>
                 </div>
 
                 <div className="kb-recommendation-box">
-                  <span className="tip-icon" aria-hidden="true">💡</span>
+                  <span className="tip-icon">
+                    <Icon name="sparkle" size={16} />
+                  </span>
                   <p>{item.recommendation}</p>
                 </div>
 

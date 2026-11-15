@@ -2,24 +2,27 @@
 import math
 from typing import Literal
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
+from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
+from app.api.auth import router as auth_router
+from app.api.personalized_analysis import router as personalized_analysis_router
+from app.api.profile import router as profile_router
+from app.database.config import get_optional_db
+from app.repositories.ingredient_knowledge_repository import IngredientKnowledgeRepository
 from app.services import label_ocr
 from app.services.additive_detector import (
     ConcernLevel,
     detect_additives,
     get_curated_additives,
 )
+from app.services.label_analysis import analyze_label
 from app.services.ingredient_analysis import analyze_ingredients
 from app.services.label_parser import parse_label_text, split_ingredients_text
-from app.services.nutrition import (
-    analyze_excess_nutrients,
-    analyze_nutrition,
-    calculate_health_score,
-)
+from app.services.nutrition import analyze_nutrition
 
 
 MAX_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024
@@ -43,6 +46,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(auth_router)
+app.include_router(profile_router)
+app.include_router(personalized_analysis_router)
 
 
 class NutritionInput(BaseModel):
@@ -130,60 +137,48 @@ def nutrition_endpoint(data: NutritionInput):
 
 
 @app.post("/analyze/ingredients")
-def analyze_ingredients_endpoint(data: IngredientAnalysisInput):
+def analyze_ingredients_endpoint(
+    data: IngredientAnalysisInput,
+    session: Session | None = Depends(get_optional_db),
+):
     """Identify selected additives and ingredients from the curated knowledge base."""
     target = (
         data.ingredients
         if data.ingredients is not None
         else data.ingredients_text
     )
-    return detect_additives(target)
+    legacy_analysis = detect_additives(target)
+    ingredients = (
+        target
+        if isinstance(target, list)
+        else split_ingredients_text(target)
+        if target is not None
+        else None
+    )
+    knowledge_records = (
+        IngredientKnowledgeRepository.load_catalog(session)
+        if session is not None
+        else None
+    )
+    legacy_analysis["ingredient_analysis"] = analyze_ingredients(
+        ingredients,
+        ingredients_available=target is not None,
+        knowledge_records=knowledge_records,
+    )
+    return legacy_analysis
 
 
 @app.post("/analyze/label")
-def label_analysis_endpoint(data: LabelAnalysisInput):
-    ingredients = (
-        split_ingredients_text(data.ingredients_text)
-        if data.ingredients_text is not None
+def label_analysis_endpoint(
+    data: LabelAnalysisInput,
+    session: Session | None = Depends(get_optional_db),
+):
+    knowledge_records = (
+        IngredientKnowledgeRepository.load_catalog(session)
+        if session is not None
         else None
     )
-    units = {
-        "total_sugar": data.sugar_unit,
-        "added_sugar": data.added_sugar_unit,
-        "sodium": data.sodium_unit,
-        "saturated_fat": data.saturated_fat_unit,
-    }
-    return {
-        "basis": data.basis,
-        "excess_nutrients": analyze_excess_nutrients(
-            sugar_g=data.sugar_g,
-            added_sugar_g=data.added_sugar_g,
-            sodium_mg=data.sodium_mg,
-            saturated_fat_g=data.saturated_fat_g,
-            basis=data.basis,
-            units=units,
-            serving_size_text=data.serving_size_text,
-        ),
-        "health_score": calculate_health_score(
-            sugar_g=data.sugar_g,
-            added_sugar_g=data.added_sugar_g,
-            sodium_mg=data.sodium_mg,
-            saturated_fat_g=data.saturated_fat_g,
-            basis=data.basis,
-            units=units,
-            serving_size_text=data.serving_size_text,
-        ),
-        "ingredient_analysis": analyze_ingredients(
-            ingredients,
-            ingredients_available=data.ingredients_text is not None,
-        ),
-        "note": (
-            "These project-defined nutrient references and curated "
-            "ingredient notes are informational. They are not medical "
-            "advice, official nutrition grades, or proof that a product "
-            "is safe or unsafe."
-        ),
-    }
+    return analyze_label(data, knowledge_records=knowledge_records)
 
 
 @app.post(
@@ -193,7 +188,10 @@ def label_analysis_endpoint(data: LabelAnalysisInput):
         "image upload. Maximum upload size is 10 MiB."
     ),
 )
-async def extract_label_endpoint(file: UploadFile = File(...)):
+async def extract_label_endpoint(
+    file: UploadFile = File(...),
+    session: Session | None = Depends(get_optional_db),
+):
     image_bytes = await file.read(MAX_IMAGE_UPLOAD_BYTES + 1)
     if len(image_bytes) > MAX_IMAGE_UPLOAD_BYTES:
         raise HTTPException(
@@ -216,7 +214,19 @@ async def extract_label_endpoint(file: UploadFile = File(...)):
         raise HTTPException(status_code=503, detail=str(error)) from error
 
     parsed = parse_label_text(ocr_text)
-    parsed["additive_analysis"] = detect_additives(
-        parsed.get("ingredients") or parsed.get("ingredients_text")
+    ingredient_target = parsed.get("ingredients") or parsed.get("ingredients_text")
+    parsed["additive_analysis"] = detect_additives(ingredient_target)
+    knowledge_records = (
+        IngredientKnowledgeRepository.load_catalog(session)
+        if session is not None
+        else None
+    )
+    extracted_ingredients = parsed.get("ingredients")
+    if extracted_ingredients is None and parsed.get("ingredients_text") is not None:
+        extracted_ingredients = split_ingredients_text(parsed["ingredients_text"])
+    parsed["ingredient_analysis"] = analyze_ingredients(
+        extracted_ingredients,
+        ingredients_available=ingredient_target is not None,
+        knowledge_records=knowledge_records,
     )
     return parsed

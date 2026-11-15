@@ -7,24 +7,27 @@ from app.services.additive_detector import (
 )
 
 
-def test_curated_additives_contains_balanced_concern_levels():
+def test_curated_additives_exposes_verification_status_and_scoped_facts():
     all_additives = get_curated_additives()
-    assert len(all_additives) >= 15
+    assert len(all_additives) == 31
 
-    high_items = get_curated_additives(concern_level="high")
-    moderate_items = get_curated_additives(concern_level="moderate")
-    low_items = get_curated_additives(concern_level="low")
+    review_items = get_curated_additives(concern_level="review_required")
+    information_items = get_curated_additives(concern_level="informational")
 
-    assert len(high_items) >= 4
-    assert len(moderate_items) >= 6
-    assert len(low_items) >= 6
+    assert len(review_items) == 29
+    assert len(information_items) == 2
 
     for item in all_additives:
         assert "id" in item
         assert "name" in item
         assert "purpose" in item
         assert "concern_level" in item
-        assert item["concern_level"] in {"low", "moderate", "high"}
+        assert item["verification_status"] in {
+            "VERIFIED",
+            "PROVISIONAL",
+            "UNVERIFIED",
+            "REVIEW_REQUIRED",
+        }
         assert "concern_summary" in item
         assert "evidence_source" in item
         assert "regulatory_status" in item
@@ -36,13 +39,14 @@ def test_get_curated_additives_filter_by_query():
     results = get_curated_additives(query="titanium")
     assert len(results) == 1
     assert results[0]["id"] == "titanium-dioxide"
-    assert results[0]["concern_level"] == "high"
+    assert results[0]["concern_level"] == "review_required"
+    assert results[0]["verification_status"] == "REVIEW_REQUIRED"
 
     e_number_results = get_curated_additives(query="E171")
     assert any(a["id"] == "titanium-dioxide" for a in e_number_results)
 
 
-def test_detect_additives_identifies_high_concern_compounds():
+def test_unverified_legacy_concern_claims_are_withheld():
     ingredients = [
         "Enriched unbleached wheat flour",
         "potassium bromate",
@@ -53,8 +57,9 @@ def test_detect_additives_identifies_high_concern_compounds():
 
     assert result["total_ingredients_scanned"] == 4
     assert result["total_additives_detected"] == 2
-    assert result["overall_concern"] == "high"
-    assert result["counts"]["high"] == 2
+    assert result["overall_concern"] == "review_required"
+    assert result["counts"]["high"] == 0
+    assert result["counts"]["review_required"] == 2
     assert result["counts"]["moderate"] == 0
     assert result["counts"]["low"] == 0
 
@@ -62,6 +67,10 @@ def test_detect_additives_identifies_high_concern_compounds():
     assert "potassium-bromate" in detected_ids
     assert "titanium-dioxide" in detected_ids
     assert "sugar" in result["unmatched_ingredients"]
+    assert all(
+        item["concern_summary"].startswith("The previous concern summary is withdrawn")
+        for item in result["matched_additives"]
+    )
 
 
 def test_detect_additives_avoids_calling_safe_additives_harmful():
@@ -75,17 +84,18 @@ def test_detect_additives_avoids_calling_safe_additives_harmful():
     result = detect_additives(ingredients)
 
     assert result["total_additives_detected"] == 3
-    assert result["overall_concern"] == "low"
+    assert result["overall_concern"] == "review_required"
     assert result["counts"]["high"] == 0
     assert result["counts"]["moderate"] == 0
-    assert result["counts"]["low"] == 3
+    assert result["counts"]["low"] == 0
+    assert result["counts"]["review_required"] == 3
 
     for additive in result["matched_additives"]:
-        assert additive["concern_level"] == "low"
+        assert additive["concern_level"] == "review_required"
         assert "purpose" in additive
         assert "evidence_source" in additive
 
-    assert "Not every additive is harmful" in result["guidance_note"]
+    assert "does not measure product concentration" in result["guidance_note"]
 
 
 def test_detect_additives_identifies_moderate_concern_additives():
@@ -98,14 +108,32 @@ def test_detect_additives_identifies_moderate_concern_additives():
     result = detect_additives(ingredients)
 
     assert result["total_additives_detected"] == 3
-    assert result["overall_concern"] == "moderate"
+    assert result["overall_concern"] == "review_required"
     assert result["counts"]["high"] == 0
-    assert result["counts"]["moderate"] == 3
+    assert result["counts"]["moderate"] == 0
+    assert result["counts"]["review_required"] == 2
+    assert result["counts"]["informational"] == 1
 
     names = [a["name"] for a in result["matched_additives"]]
     assert any("Sodium Benzoate" in name for name in names)
     assert any("Aspartame" in name for name in names)
     assert any("Red 40" in name for name in names)
+    aspartame = next(a for a in result["matched_additives"] if a["id"] == "aspartame")
+    assert aspartame["verification_status"] == "PROVISIONAL"
+    assert "limited evidence" in aspartame["concern_summary"]
+    assert "risk from a particular product" in aspartame["concern_summary"]
+    assert aspartame["scientific_evidence"]["acceptable_daily_intake"]["value"] == 40
+    assert "ADI" not in aspartame["regulatory_status"]
+
+
+def test_bvo_verified_regulatory_fact_is_limited_to_us_jurisdiction():
+    result = detect_additives(["brominated vegetable oil"])
+
+    assert result["overall_concern"] == "informational"
+    bvo = result["matched_additives"][0]
+    assert bvo["verification_status"] == "VERIFIED"
+    assert bvo["regulatory_information"]["jurisdiction"] == "United States"
+    assert "other jurisdictions" in bvo["regulatory_status"]
 
 
 def test_detect_additives_handles_nested_parentheses_and_e_numbers():
@@ -117,7 +145,7 @@ def test_detect_additives_handles_nested_parentheses_and_e_numbers():
     assert "red-40" in detected_ids
     assert "citric-acid" in detected_ids
     assert "titanium-dioxide" in detected_ids
-    assert result["overall_concern"] == "high"
+    assert result["overall_concern"] == "review_required"
 
 
 def test_detect_additives_with_clean_label_or_empty():

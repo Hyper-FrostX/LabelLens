@@ -3,11 +3,17 @@ from __future__ import annotations
 import re
 from typing import Any, Literal
 
-ConcernLevel = Literal["low", "moderate", "high"]
+ConcernLevel = Literal[
+    "low",
+    "moderate",
+    "high",
+    "review_required",
+    "informational",
+]
 
-# Curated knowledge base of food additives and ingredients.
-# Each entry includes scientific consensus, functional purpose,
-# regulatory status, and evidence citations.
+# Historical additive catalog. Runtime entries are source-gated below; legacy
+# claims that have not been independently reviewed are replaced with neutral
+# text and REVIEW_REQUIRED status.
 CURATED_ADDITIVES: list[dict[str, Any]] = [
     # ---------------- HIGH CONCERN ----------------
     {
@@ -772,6 +778,126 @@ CURATED_ADDITIVES: list[dict[str, Any]] = [
 ]
 
 
+_REVIEW_DATE = "2026-11-15"
+_BVO_SOURCE = "https://www.fda.gov/food/food-additives-petitions/brominated-vegetable-oil-bvo"
+_ASPARTAME_SOURCE = (
+    "https://www.iarc.who.int/news-events/"
+    "aspartame-hazard-and-risk-assessment-results-released/"
+)
+
+for _record in CURATED_ADDITIVES:
+    _record["reviewed_at"] = _REVIEW_DATE
+
+    if _record["id"] == "brominated-vegetable-oil":
+        _record.update(
+            verification_status="VERIFIED",
+            verification_scope=(
+                "U.S. FDA identity, former beverage-stabilizer use, and "
+                "revocation of authorization only."
+            ),
+            concern_level="informational",
+            purpose=(
+                "The FDA reports that BVO was formerly used as a stabilizer "
+                "for fruit flavoring in beverages, at a maximum of 15 ppm "
+                "under its former authorization."
+            ),
+            concern_summary=(
+                "The FDA revoked the U.S. food-additive regulation for BVO "
+                "on July 3, 2024; the rule became effective August 2, 2024. "
+                "This jurisdiction-specific regulatory fact does not establish "
+                "whether BVO is present in a particular product or its status "
+                "in another jurisdiction."
+            ),
+            evidence_source="U.S. FDA, Brominated Vegetable Oil (BVO)",
+            evidence_url=_BVO_SOURCE,
+            regulatory_information={
+                "jurisdiction": "United States",
+                "status": "Authorization revoked",
+                "date_issued": "2024-07-03",
+                "effective_date": "2024-08-02",
+                "source_url": _BVO_SOURCE,
+                "verified": True,
+            },
+            regulatory_status=(
+                "United States: authorization revoked in 2024. No status for "
+                "other jurisdictions is asserted by this record."
+            ),
+            recommendation=(
+                "No product-specific risk or consumption recommendation is "
+                "inferred from the ingredient name."
+            ),
+        )
+    elif _record["id"] == "aspartame":
+        _record.update(
+            verification_status="PROVISIONAL",
+            evidence_claim_status="VERIFIED",
+            verification_scope=(
+                "The cited IARC/JECFA assessment is verified; aliases, "
+                "additive identifiers, and broader regulatory claims need "
+                "separate review."
+            ),
+            concern_level="informational",
+            purpose="Non-sugar sweetener, as described in the cited assessment.",
+            concern_summary=(
+                "IARC classified aspartame as possibly carcinogenic to humans "
+                "(Group 2B), citing limited evidence; JECFA reaffirmed an ADI "
+                "of 40 mg/kg body weight. Hazard classification and risk "
+                "assessment are distinct, and this does not determine risk "
+                "from a particular product."
+            ),
+            evidence_source=(
+                "IARC/WHO/FAO JECFA, Aspartame hazard and risk assessment results released"
+            ),
+            evidence_url=_ASPARTAME_SOURCE,
+            scientific_evidence={
+                "classification": "IARC Group 2B; limited evidence",
+                "acceptable_daily_intake": {
+                    "value": 40,
+                    "unit": "mg/kg body weight",
+                    "organization": "JECFA",
+                },
+                "publication_date": "2023-07-14",
+                "source_url": _ASPARTAME_SOURCE,
+                "verified": True,
+                "limitation": (
+                    "This assessment does not establish exposure or risk from "
+                    "a particular product."
+                ),
+            },
+            regulatory_status=(
+                "No jurisdictional authorization or labeling rule is asserted "
+                "by this record."
+            ),
+            recommendation=(
+                "No product-specific exposure or consumption recommendation "
+                "is inferred."
+            ),
+        )
+    else:
+        _record.update(
+            verification_status="REVIEW_REQUIRED",
+            verification_scope=(
+                "Legacy identity, function, health, and regulatory details "
+                "have not been independently verified."
+            ),
+            concern_level="review_required",
+            purpose="Function and use require authoritative source verification.",
+            concern_summary=(
+                "The previous concern summary is withdrawn pending source "
+                "review. No health conclusion is established by this record."
+            ),
+            evidence_source=None,
+            evidence_url=None,
+            regulatory_status=(
+                "Not verified. No jurisdictional approval, restriction, or "
+                "usage limit is asserted."
+            ),
+            recommendation=(
+                "No health or consumption recommendation is provided."
+            ),
+        )
+
+
 _SYNONYM_LOOKUP: dict[str, dict[str, Any]] = {}
 for _additive in CURATED_ADDITIVES:
     for _syn in _additive["synonyms"]:
@@ -782,7 +908,7 @@ def get_curated_additives(
     concern_level: ConcernLevel | None = None,
     query: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Return the curated list of additives with optional filtering."""
+    """Return source-gated additive records with optional filtering."""
     results = CURATED_ADDITIVES
     if concern_level is not None:
         results = [a for a in results if a["concern_level"] == concern_level]
@@ -849,12 +975,7 @@ def detect_additives(
     ingredients: list[str] | str | None,
 ) -> dict[str, Any]:
     """
-    Identify selected additives and ingredients from the curated knowledge base.
-
-    - Returns matched additives with functional purpose, concern level, and evidence.
-    - Categorizes concern levels objectively (high, moderate, low/safe).
-    - Preserves unmatched natural ingredients.
-    - Provides a balanced educational guidance statement to avoid calling every additive harmful.
+    Identify catalog matches without inferring product exposure or safety.
     """
     if ingredients is None:
         ingredient_list: list[str] = []
@@ -888,19 +1009,30 @@ def detect_additives(
     high_count = sum(1 for a in matched_additives if a["concern_level"] == "high")
     moderate_count = sum(1 for a in matched_additives if a["concern_level"] == "moderate")
     low_count = sum(1 for a in matched_additives if a["concern_level"] == "low")
+    review_required_count = sum(
+        1 for a in matched_additives
+        if a["verification_status"] in {"UNVERIFIED", "REVIEW_REQUIRED"}
+    )
+    informational_count = sum(
+        1 for a in matched_additives if a["concern_level"] == "informational"
+    )
 
-    if high_count > 0:
-        overall_concern = "high"
-    elif moderate_count > 0:
-        overall_concern = "moderate"
-    elif low_count > 0:
-        overall_concern = "low"
-    else:
+    if review_required_count:
+        overall_concern = "review_required"
+    elif informational_count:
+        overall_concern = "informational"
+    elif not matched_additives:
         overall_concern = "none_detected"
+    else:
+        overall_concern = "review_required"
 
-    # Sort matched additives: high concern first, then moderate, then low
-    concern_order = {"high": 0, "moderate": 1, "low": 2}
-    matched_additives.sort(key=lambda a: concern_order.get(a["concern_level"], 99))
+    matched_additives.sort(
+        key=lambda a: (
+            a["verification_status"] != "REVIEW_REQUIRED",
+            a["verification_status"],
+            a["name"],
+        )
+    )
 
     return {
         "total_ingredients_scanned": len(ingredient_list),
@@ -910,13 +1042,15 @@ def detect_additives(
             "high": high_count,
             "moderate": moderate_count,
             "low": low_count,
+            "review_required": review_required_count,
+            "informational": informational_count,
         },
         "matched_additives": matched_additives,
         "unmatched_ingredients": unmatched_ingredients,
         "guidance_note": (
-            "Food additives serve important functions including preservation, "
-            "texture stabilization, and safety against dangerous foodborne pathogens. "
-            "Not every additive is harmful. Label Lens distinguishes evidence-based concern "
-            "levels according to evaluations by the EFSA, FDA, WHO/JECFA, and scientific consensus."
+            "Ingredient-name matching does not measure product concentration, "
+            "consumption, or exposure. Unverified legacy claims are withheld; "
+            "verified regulatory or scientific facts are jurisdiction- and "
+            "context-specific and are not product safety determinations."
         ),
     }

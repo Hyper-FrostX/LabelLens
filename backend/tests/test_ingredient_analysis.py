@@ -117,10 +117,9 @@ def test_recognized_additive_is_not_claimed_harmful_or_proven_safe():
     result = analyze_ingredients(["INS 551"], ingredients_available=True)
     ingredient = result["ingredients"][0]
 
-    assert ingredient["concern_level"] == (
-        "No specific concern identified in current knowledge base"
-    )
-    assert "not proof that it is safe" in ingredient["explanation"]
+    assert ingredient["verification_status"] == "UNVERIFIED"
+    assert ingredient["concern_status"] == "unknown"
+    assert "does not establish a health conclusion" in ingredient["explanation"]
     assert ingredient["source_url"] is None
 
 
@@ -134,7 +133,12 @@ def test_existing_verified_sources_are_retained():
     assert peanut["evidence_source"] == "U.S. FDA, Food Allergies"
     assert peanut["source_url"].startswith("https://www.fda.gov/")
     assert "peanut allergy" in peanut["explanation"]
-    assert citric_acid["source_url"].startswith("https://www.ecfr.gov/")
+    assert citric_acid["verification_status"] == "REVIEW_REQUIRED"
+    assert citric_acid["source_url"] is None
+    assert citric_acid["source_references"]
+    assert all(
+        not source["verified"] for source in citric_acid["source_references"]
+    )
 
 
 def test_only_source_backed_health_concerns_are_returned_for_display():
@@ -179,3 +183,32 @@ def test_missing_ingredient_list_remains_unavailable():
     assert result["ingredients"] == []
     assert result["evidence_concerns"] == []
     assert result["evidence_concern_count"] == 0
+
+
+@pytest.mark.parametrize(
+    ("label_text", "canonical_name"),
+    [
+        ("E211", "Sodium benzoate"),
+        ("E-202", "Potassium sorbate"),
+        ("INS 330", "Citric acid"),
+        ("621", "Monosodium glutamate"),
+        ("E 951", "Aspartame"),
+        ("INS-955", "Sucralose"),
+        ("MSG", "Monosodium glutamate"),
+    ],
+)
+def test_initial_additives_match_identifiers_and_common_aliases(
+    label_text,
+    canonical_name,
+):
+    result = analyze_ingredients([label_text], ingredients_available=True)
+
+    assert result["ingredients"][0]["canonical_name"] == canonical_name
+    assert result["ingredients"][0]["match_quality"] == "exact"
+
+
+@pytest.mark.parametrize("label_text", ["X211", "E2110", "batch621", "621mg"])
+def test_additive_identifiers_do_not_match_embedded_text(label_text):
+    result = analyze_ingredients([label_text], ingredients_available=True)
+
+    assert result["ingredients"][0]["canonical_name"] is None

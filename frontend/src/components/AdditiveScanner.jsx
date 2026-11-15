@@ -1,4 +1,7 @@
 import { useState } from "react";
+import Button from "./ui/Button";
+import Icon from "./ui/Icon";
+import Spinner from "./ui/Spinner";
 
 const PRESETS = [
   {
@@ -84,37 +87,34 @@ export default function AdditiveScanner({ apiBaseUrl }) {
     if (!result || result.total_additives_detected === 0) {
       return {
         badgeClass: "verdict-clean",
-        title: "No Flagged Additives Detected",
+        title: "No Catalog Matches",
         subtitle:
           result?.total_ingredients_scanned > 0
-            ? "All detected items appear to be whole foods or uncatalogued standard ingredients."
+            ? "No current catalog entry matched. This does not establish ingredient absence or product safety."
             : "Enter an ingredient list to begin scanning.",
       };
     }
 
-    if (result.counts.high > 0) {
+    if (result.counts.review_required > 0) {
       return {
-        badgeClass: "verdict-high",
-        title: `${result.counts.high} High-Concern Additive${result.counts.high > 1 ? "s" : ""} Detected`,
-        subtitle:
-          "Includes additives banned or heavily restricted in major international food jurisdictions due to toxicological evidence.",
+        badgeClass: "verdict-moderate",
+        title: `${result.counts.review_required} Entry${result.counts.review_required > 1 ? "s" : ""} Require Review`,
+        subtitle: "Legacy health and regulatory claims are withheld until authoritative sources are verified.",
       };
     }
 
-    if (result.counts.moderate > 0) {
+    if (result.counts.informational > 0) {
       return {
-        badgeClass: "verdict-moderate",
-        title: `${result.counts.moderate} Moderate-Concern Additive${result.counts.moderate > 1 ? "s" : ""} Identified`,
-        subtitle:
-          "Additives with substantiated sensitivity concerns, pediatric hyperactivity warnings, or acceptable daily intake (ADI) limits.",
+        badgeClass: "verdict-low",
+        title: "Verified Information Found",
+        subtitle: "Verified source facts do not determine exposure or risk from a particular product.",
       };
     }
 
     return {
-      badgeClass: "verdict-low",
-      title: "Safe & Functional Additives Identified",
-      subtitle:
-        "The identified additives are widely recognized as safe (GRAS / EFSA approved) with established functional benefits and no adverse health flags.",
+      badgeClass: "verdict-moderate",
+      title: "No Health Assessment Available",
+      subtitle: "Ingredient identity alone cannot establish product safety or risk.",
     };
   }
 
@@ -185,14 +185,13 @@ export default function AdditiveScanner({ apiBaseUrl }) {
           )}
 
           <div className="scanner-actions">
-            <button
+            <Button
               type="submit"
-              className="submit-button"
               disabled={isScanning || !ingredientsText.trim()}
             >
               {isScanning ? (
                 <>
-                  <span className="spinner" aria-hidden="true" />
+                  <Spinner />
                   Scanning ingredients…
                 </>
               ) : (
@@ -201,7 +200,7 @@ export default function AdditiveScanner({ apiBaseUrl }) {
                   <span aria-hidden="true">→</span>
                 </>
               )}
-            </button>
+            </Button>
 
             {ingredientsText && (
               <button
@@ -221,7 +220,9 @@ export default function AdditiveScanner({ apiBaseUrl }) {
 
         <div className="educational-note-card">
           <div className="educational-note-header">
-            <span className="info-icon" aria-hidden="true">💡</span>
+            <span className="info-icon">
+              <Icon name="sparkle" size={17} />
+            </span>
             <strong>The Scientific Approach</strong>
           </div>
           <p>
@@ -245,23 +246,18 @@ export default function AdditiveScanner({ apiBaseUrl }) {
               </div>
             </div>
 
-            {/* Counts Breakdown Bar */}
             <div className="stats-grid">
               <div className="stat-box">
                 <span className="stat-label">Scanned</span>
                 <strong className="stat-number">{scanResult.total_ingredients_scanned}</strong>
               </div>
-              <div className="stat-box stat-high">
-                <span className="stat-label">High Concern</span>
-                <strong className="stat-number">{scanResult.counts.high}</strong>
+              <div className="stat-box stat-review">
+                <span className="stat-label">Review Required</span>
+                <strong className="stat-number">{scanResult.counts.review_required}</strong>
               </div>
-              <div className="stat-box stat-moderate">
-                <span className="stat-label">Moderate</span>
-                <strong className="stat-number">{scanResult.counts.moderate}</strong>
-              </div>
-              <div className="stat-box stat-low">
-                <span className="stat-label">Safe / Functional</span>
-                <strong className="stat-number">{scanResult.counts.low}</strong>
+              <div className="stat-box stat-info">
+                <span className="stat-label">Verified Information</span>
+                <strong className="stat-number">{scanResult.counts.informational}</strong>
               </div>
             </div>
 
@@ -274,13 +270,16 @@ export default function AdditiveScanner({ apiBaseUrl }) {
 
                 <div className="additives-card-list">
                   {scanResult.matched_additives.map((additive) => {
-                    const levelClass = `level-${additive.concern_level}`;
+                    const levelClass =
+                      additive.verification_status === "REVIEW_REQUIRED"
+                        ? "level-review-required"
+                        : "level-informational";
                     const levelLabel =
-                      additive.concern_level === "high"
-                        ? "High Concern"
-                        : additive.concern_level === "moderate"
-                        ? "Moderate Concern"
-                        : "Safe / Low Concern";
+                      additive.verification_status === "REVIEW_REQUIRED"
+                        ? "Review required"
+                        : additive.verification_status === "PROVISIONAL"
+                        ? "Provisional"
+                        : "Verified facts";
 
                     return (
                       <article className={`additive-detail-card ${levelClass}`} key={additive.id}>
@@ -308,27 +307,29 @@ export default function AdditiveScanner({ apiBaseUrl }) {
                           </div>
 
                           <div className="additive-info-row">
-                            <span className="info-key">Scientific Evidence:</span>
+                            <span className="info-key">Evidence:</span>
                             <span className="info-val evidence-summary">
                               {additive.concern_summary}
                             </span>
                           </div>
 
                           <div className="additive-info-row">
-                            <span className="info-key">Regulatory Status:</span>
+                            <span className="info-key">Regulatory Reference:</span>
                             <span className="info-val regulatory-val">
                               {additive.regulatory_status}
                             </span>
                           </div>
 
                           <div className="additive-recommendation">
-                            <span className="tip-icon" aria-hidden="true">✓</span>
                             <span>{additive.recommendation}</span>
                           </div>
                         </div>
 
                         <footer className="additive-card-footer">
-                          <span>Source: {additive.evidence_source}</span>
+                          <span>
+                            Source: {additive.evidence_source || "No verified source citation"}
+                            {additive.evidence_url ? ` — ${additive.evidence_url}` : ""}
+                          </span>
                         </footer>
                       </article>
                     );
@@ -337,11 +338,13 @@ export default function AdditiveScanner({ apiBaseUrl }) {
               </div>
             ) : (
               <div className="no-additives-box">
-                <span className="check-mark" aria-hidden="true">🌿</span>
-                <h4>Clean Label Ingredients</h4>
+                <span className="check-mark">
+                  <Icon name="check" size={22} />
+                </span>
+                <h4>No Catalog Matches</h4>
                 <p>
-                  No controversial, restricted, or synthetic additives from the curated database were
-                  detected in this formulation.
+                  No current catalog entry matched. This does not establish ingredient absence,
+                  product safety, or a complete label review.
                 </p>
               </div>
             )}

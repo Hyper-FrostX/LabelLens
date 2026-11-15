@@ -1,16 +1,30 @@
 :root {
   font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    sans-serif;
+    Inter, "Aptos", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
   color: #26382e;
-  background: #f7f9f6;
+  background: #f5f7f3;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
   font-optical-sizing: auto;
   font-weight: 400;
+
+  --forest-950: #18372d;
+  --forest-900: #214638;
+  --forest-700: #356b50;
+  --sage-600: #67816f;
+  --sage-300: #cbd8cc;
+  --sage-150: #e6ece5;
+  --paper: #f5f7f3;
+  --surface: #ffffff;
+  --ink: #22372d;
+  --muted: #65756a;
+  --line: #e1e8e0;
+  --accent: #c18a48;
+  --card-radius: 16px;
+  --card-shadow: 0 10px 28px rgba(27, 55, 40, 0.045);
 }
 
 * {
@@ -20,7 +34,7 @@
 html {
   min-width: 320px;
   min-height: 100%;
-  background: #f7f9f6;
+  background: var(--paper);
 }
 
 body {
@@ -38,7 +52,17 @@ button {
   -webkit-tap-highlight-color: transparent;
 }
 
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+summary:focus-visible {
+  outline: 3px solid rgba(193, 138, 72, 0.55);
+  outline-offset: 3px;
+}
+
 ::selection {
-  background: #d6e9da;
-  color: #1d4933;
+  background: #dce8dc;
+  color: var(--forest-950);
 }

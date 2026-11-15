@@ -1,6 +1,6 @@
 from io import BytesIO
 
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 import pytest
 
 from app.services import label_ocr
@@ -12,7 +12,7 @@ def test_configure_tesseract_prefers_environment_variable(monkeypatch):
     monkeypatch.setattr(
         label_ocr.shutil,
         "which",
-        lambda _: r"C:\FromPath\tesseract.exe",
+        lambda candidate: configured_path if candidate == configured_path else None,
     )
 
     result = label_ocr.configure_tesseract()
@@ -50,6 +50,13 @@ def test_configure_tesseract_uses_standard_windows_path(monkeypatch, tmp_path):
     assert label_ocr.pytesseract.pytesseract.tesseract_cmd == result
 
 
+def test_configure_tesseract_rejects_an_invalid_explicit_path(monkeypatch):
+    monkeypatch.setenv("TESSERACT_CMD", r"C:\Missing\tesseract.exe")
+    monkeypatch.setattr(label_ocr.shutil, "which", lambda _: None)
+
+    assert label_ocr.configure_tesseract() is None
+
+
 def test_extract_text_reports_missing_tesseract_without_running_ocr(
     monkeypatch, tmp_path
 ):
@@ -76,7 +83,48 @@ def test_extract_text_reports_missing_tesseract_without_running_ocr(
         label_ocr.extract_text(image_bytes.getvalue())
 
 
-def test_extract_text_ocr_passes_full_image_and_enhanced_right_region(monkeypatch):
+def test_extract_text_reports_invalid_configured_tesseract_path(
+    monkeypatch, tmp_path
+):
+    image_bytes = BytesIO()
+    Image.new("RGB", (2, 2), color="white").save(image_bytes, format="PNG")
+    monkeypatch.setenv("TESSERACT_CMD", str(tmp_path / "missing-tesseract.exe"))
+    monkeypatch.setattr(label_ocr.shutil, "which", lambda _: None)
+
+    with pytest.raises(label_ocr.OCRServiceError, match="does not point"):
+        label_ocr.extract_text(image_bytes.getvalue())
+
+
+def test_preprocess_image_resizes_but_bounds_ocr_dimensions():
+    small = Image.new("RGB", (100, 200), color="white")
+    large = Image.new("RGB", (4000, 2000), color="white")
+
+    assert label_ocr._preprocess_image(small).size == (200, 400)
+    assert label_ocr._preprocess_image(large).size == (3200, 1600)
+
+
+def test_extract_text_applies_exif_orientation_before_ocr(monkeypatch):
+    image_bytes = BytesIO()
+    image = Image.new("RGB", (300, 100), color="white")
+    exif = Image.Exif()
+    exif[274] = 6
+    image.save(image_bytes, format="JPEG", exif=exif)
+    observed_images = []
+    monkeypatch.setattr(label_ocr, "configure_tesseract", lambda: "tesseract")
+    monkeypatch.setattr(
+        label_ocr.pytesseract,
+        "image_to_string",
+        lambda candidate, config: observed_images.append(candidate.size) or "",
+    )
+
+    label_ocr.extract_text(image_bytes.getvalue())
+
+    assert observed_images[0] == (100, 300)
+
+
+def test_extract_text_uses_mocked_tesseract_on_full_layout_and_right_region(
+    monkeypatch,
+):
     image_bytes = BytesIO()
     Image.new("RGB", (1000, 1000), color=(255, 225, 0)).save(
         image_bytes,
@@ -106,17 +154,51 @@ def test_extract_text_ocr_passes_full_image_and_enhanced_right_region(monkeypatc
 
     result = label_ocr.extract_text(image_bytes.getvalue())
 
-    assert len(observed_images) == 2
+    assert len(observed_images) == 3
     assert observed_images[0][0].size == (1000, 1000)
     assert observed_images[0][0].mode == "RGB"
     assert observed_images[0][1] == "--psm 6"
-    assert observed_images[1][0].size == (1000, 2000)
+    assert observed_images[1][0].size == (1200, 1200)
     assert observed_images[1][0].mode == "L"
-    assert observed_images[1][1] == "--psm 6"
+    assert observed_images[1][1] == "--psm 11"
+    assert observed_images[2][0].size == (1200, 2400)
+    assert observed_images[2][0].mode == "L"
+    assert observed_images[2][1] == "--psm 6"
     assert result.count("Serving Size: 25 g") == 1
     assert "Saturated Fat 0.8 g 4%" in result
     assert "Sodium 249 mg 11%" in result
     assert "Total Sugars 3.4 g 3%" in result
+
+
+def test_extract_text_with_real_tesseract_when_installed():
+    if label_ocr.configure_tesseract() is None:
+        pytest.skip("Tesseract executable is not installed")
+    try:
+        label_ocr.pytesseract.get_tesseract_version()
+    except (
+        label_ocr.TesseractNotFoundError,
+        label_ocr.TesseractError,
+        OSError,
+    ):
+        pytest.skip("Tesseract executable is not responding")
+
+    image = Image.new("RGB", (1400, 600), color="white")
+    draw = ImageDraw.Draw(image)
+    draw.multiline_text(
+        (40, 35),
+        "Product Name: Oat Crunch\nPer 100 g\nTotal Sugars 4 g\nSodium 80 mg",
+        fill="black",
+        font=ImageFont.load_default(size=44),
+        spacing=18,
+    )
+    image_bytes = BytesIO()
+    image.save(image_bytes, format="PNG")
+
+    result = label_ocr.extract_text(image_bytes.getvalue())
+
+    assert "Product Name: Oat Crunch" in result
+    assert "Total Sugars 4 g" in result
+    assert "Sodium 80 mg" in result
 
 
 def test_merge_ocr_text_deduplicates_normalized_lines():
