@@ -139,7 +139,11 @@ def _legacy_record(entry: dict) -> dict:
     legacy_evidence_url = entry.get("source_url")
     legacy_evidence_source = entry.get("evidence_source")
     legacy_status = entry.get("concern_status")
-    if legacy_status == "evidence_based" and legacy_evidence_url:
+    if (
+        legacy_status == "evidence_based"
+        and entry.get("evidence_verified") is True
+        and legacy_evidence_url
+    ):
         record["evidence"].append(
             {
                 "statement": entry["explanation"],
@@ -299,6 +303,7 @@ def get_curated_ingredient_records() -> list[dict]:
             "__allergen_catalog__": True,
             "canonical_name": item["canonical_name"],
             "aliases": item["aliases"],
+            "verification_status": item["verification_status"],
         }
         for item in allergens
     ]

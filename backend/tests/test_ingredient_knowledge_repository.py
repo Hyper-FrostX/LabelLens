@@ -1,9 +1,62 @@
+from app.data import ingredient_knowledge
+from app.data.ingredient_knowledge import get_curated_ingredient_records
 from app.repositories.ingredient_knowledge_repository import (
     IngredientKnowledgeRepository,
 )
-from app.models import Ingredient
+from app.models import AllergenAlias, Ingredient
 from app.services.ingredient_analysis import analyze_ingredients
 from sqlalchemy import select
+
+
+def test_source_url_alone_does_not_verify_a_legacy_evidence_claim(monkeypatch):
+    monkeypatch.setattr(
+        ingredient_knowledge,
+        "INGREDIENT_KNOWLEDGE_BASE",
+        (
+            {
+                "canonical_name": "Example ingredient",
+                "aliases": ("example ingredient",),
+                "function": "Example function.",
+                "concern_status": "evidence_based",
+                "explanation": "Example claim.",
+                "evidence_context": "Example limitation.",
+                "evidence_source": "Unreviewed source",
+                "source_url": "https://example.test/source",
+            },
+        ),
+    )
+
+    record = next(
+        item
+        for item in ingredient_knowledge.get_curated_ingredient_records()
+        if item.get("canonical_name") == "Example ingredient"
+    )
+
+    assert record["verification_status"] == "REVIEW_REQUIRED"
+    assert record["evidence"] == []
+
+
+def test_allergen_catalog_preserves_alias_verification_status(db_session):
+    allergen_records = [
+        record
+        for record in get_curated_ingredient_records()
+        if record.get("__allergen_catalog__")
+    ]
+
+    assert len(allergen_records) == 9
+    assert all(
+        record["verification_status"] == "REVIEW_REQUIRED"
+        for record in allergen_records
+    )
+
+    IngredientKnowledgeRepository.seed_curated_data(db_session)
+    aliases = db_session.scalars(select(AllergenAlias)).all()
+
+    assert aliases
+    assert all(
+        alias.verification_status == "REVIEW_REQUIRED"
+        for alias in aliases
+    )
 
 
 def test_curated_seed_is_idempotent_and_catalog_is_queryable(db_session):

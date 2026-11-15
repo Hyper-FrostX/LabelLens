@@ -20,12 +20,24 @@ assessment or a determination of product safety.
   regulatory statement; aspartame has one `PROVISIONAL` record with a
   verified assessment statement; the other 29 are `REVIEW_REQUIRED`.
 - **9 allergen alias groups:** all remain `REVIEW_REQUIRED` as complete alias
-  sets. FDA material verifies the U.S. nine major allergen categories but
-  does not verify all LabelLens aliases, Indian requirements, or cross-contact
-  inference.
-- No new Indian-market ingredient records were added. The FSSAI additive
-  compendium could not be retrieved, Codex GSFA returned HTTP 403, and the
-  EFSA/eCFR sources attempted were blocked or redirected to access challenges.
+  sets. FSSAI Regulation 5(14) requires declaration of its listed allergens,
+  including sulphites at 10 mg/kg or more; LabelLens has no sulphite group
+  and includes sesame, which is not on that FSSAI list. The FSSAI list also
+  combines peanuts/tree nuts and names crustaceans rather than all shellfish,
+  so it does not verify the LabelLens alias sets. FDA's U.S. allergen list is
+  separate and does not establish Indian requirements.
+- No new Indian-market ingredient records were added. Readable FSSAI text
+  includes a 2018 Section 16(5) direction titled as a potassium-bromate
+  prohibition in any food article, but the original 2011 text still contains
+  use provisions; no official withdrawal/rescission of the direction or formal
+  repeal of those entries was located in the materials reviewed. A 2011 BVO
+  listing identifies its name/function but not a permitted category. Titanium
+  dioxide has an express double-fortified-salt entry and an earlier broad,
+  conditional GMP provision whose Annex excludes listed food categories; its
+  current relationship to the category-specific entry is unresolved.
+  Current compendium trans-fat limits and allergen declaration rules are
+  documented below. The Codex GSFA route was unavailable, and EFSA/eCFR
+  sources attempted were blocked or redirected to access challenges.
 
 ## Sources consulted
 
@@ -34,11 +46,35 @@ assessment or a determination of product safety.
 | *Food Allergies* — U.S. Food and Drug Administration | <https://www.fda.gov/food/food-labeling-nutrition/food-allergies> (redirected to FDA's current Food Allergies page) | The page identifies the FASTER Act's sesame effective date (2023-01-01) and lists FDA allergen guidance announced 2025-01-06; no single page revision date shown | 2026-11-15 | Supports the U.S. major-allergen categories and allergy-specific hazard context. It does not verify all LabelLens synonyms or establish that a product contains an allergen. |
 | *Brominated Vegetable Oil (BVO)* — U.S. Food and Drug Administration | <https://www.fda.gov/food/food-additives-petitions/brominated-vegetable-oil-bvo> | FDA page states its final rule was issued 2024-07-03 and became effective 2024-08-02; content metadata says 2024-07-02 | 2026-11-15 | Supports former U.S. use as a beverage flavor stabilizer (up to 15 ppm under the former authorization) and the U.S. revocation only. No status in India, the EU, or other jurisdictions is asserted. |
 | *Aspartame hazard and risk assessment results released* — International Agency for Research on Cancer (IARC), reporting IARC and FAO/WHO JECFA findings | <https://www.iarc.who.int/news-events/aspartame-hazard-and-risk-assessment-results-released/> | 2023-07-14 | 2026-11-15 | Supports IARC Group 2B with limited evidence and JECFA reaffirmation of an ADI of 40 mg/kg body weight. This does not determine product exposure or individual risk. |
-| *Food Safety and Standards Regulations* — Food Safety and Standards Authority of India (FSSAI) | <https://www.fssai.gov.in/cms/food-safety-and-standards-regulations.php> | Not available from returned page | 2026-11-15 | The URL returned a JavaScript application shell without regulation text or source documents; no ingredient claim was verified from it. |
-| FSSAI *Compendium_Food_Additives_Regulations.pdf* (expected path) | <https://www.fssai.gov.in/upload/uploadfiles/files/Compendium_Food_Additives_Regulations.pdf> | Not retrieved | 2026-11-15 | Returned HTTP 404. No Indian use categories or limits were inferred. |
-| Codex Alimentarius *General Standard for Food Additives (GSFA) Online Database* | <https://www.fao.org/gsfaonline/additives/index.html?lang=en> | Database revision not accessible | 2026-11-15 | Returned HTTP 403. The generic link in prior seed records remains unverified and is not evidence for a particular additive, category, or limit. |
+| FSSAI *Food Safety and Standards (Food Products Standards and Food Additives) Regulations, 2011* and current regulations portal | <https://www.fssai.gov.in/cms/food-safety-and-standards-regulations.php> and <https://www.fssai.gov.in/docs/food-law/regulations/Food_Additives_Regulations.pdf> | Regulation notified 2011-08-01; Maida standard PDF p. 71 (Gazette p. 357); Regulation 3.1.17 PDF p. 148 (Gazette p. 434); general additive list PDF p. 224 (Gazette p. 510) | 2026-11-15 | The original text lists potassium bromate (max) 20 ppm for bakery flour treatment and the bread/flour provisions in Regulation 3.1.17. Its general additive list identifies BVO (INS 443) as “Emulsifier, stabilizer”; that listing is not a category permission. |
+| FSSAI *Food Safety and Standards (Food Products Standards and Food Additives) Regulations, 2011*, Appendix A, “Use of Food Additives in Food Products,” Table 1, “List of food additives for use in bread and biscuits,” C. Improver, serial 7 | <https://www.fssai.gov.in/docs/food-law/regulations/Food_Additives_Regulations.pdf> | Notified 2011-08-01; PDF p. 164 (Gazette p. 450) | 2026-11-15 | Lists potassium bromate and/or potassium iodate at 50 ppm max on flour mass basis in the Bread column. This is separate from Regulation 3.1.17 and does not resolve current status after later instruments. |
+| FSSAI *Direction under Section 16(5) of the Food Safety and Standards Act, 2006 dated 12th Feb. 2018 regarding prohibition of use of potassium bromate in any food article* | <https://www.fssai.gov.in/docs/whatsnew/advisories-orders/5a93c346df548Direction_Prohibition_Potassium_Bromate_12_02_20181_1.pdf> | 2018-02-12; PDF pp. 1-2; scanned direction, not a Gazette notification | 2026-11-15 | The official direction title states a prohibition in any food article. No separate effective-date clause was readable; no formal Gazette deletion of the older 2011 entries was located, so the amendment/repeal relationship remains qualified. |
+| FSSAI *Chapter 3: Substances Added to Food*, Version 4 | <https://www.fssai.gov.in/docs/food-law/regulations/compendium/food-products-standards/Chapter%203_Substances%20added%20to%20food(1).pdf> | 2025-08-01; PDF p. 31 | 2026-11-15 | Gives titanium dioxide (INS 171) identity/purity specifications, not a food-category authorization. |
+| FSSAI *Food Safety and Standards (Food Products Standards and Food Additives) Seventh Amendment Regulations, 2016* | <https://www.fssai.gov.in/docs/food-law/regulations/amendments/food-products-standards/Gazette_Notification_Additive_Harmonization_16_09_2016.pdf> | F. No. 11/09/Reg/Harmoniztn/2014, dated 2016-09-05; Gazette 2016-09-08, No. 342 (4344 GI/2016); Table 12 PDF p. 300; conditional GMP table PDF pp. 332-333; “Annex to GMP” PDF pp. 333-335 | 2026-11-15 | Table 12, category 12.1.1, says only listed additives are permitted in double-fortified salt and lists INS 171 at GMP. The later table says listed GMP additives may be used in all food categories except those listed in the “Annex to GMP,” headed “Food Categories or Individual Food Items where GMP Table shall not apply.” Those exceptions limit the scope of the table and are not, by themselves, prohibitions in the excluded categories. The current effect/relationship of these provisions is not resolved by the compendium alone. |
+| FSSAI *Food Safety and Standards (Food Products Standards and Food Additives) Compendium*, Appendix A: Food Category System, Version 3 | <https://www.fssai.gov.in/docs/food-law/regulations/compendium/food-products-standards/Appendix%20A(4).pdf> | 2025-08-01; PDF p. 274; category 12.1.1 | 2026-11-15 | Explicitly lists INS 171 at GMP for double-fortified salt. The compendium is a consolidated reference, not the underlying legal instrument; no broader current permission or ban is inferred. Appendix A contained no INS 443 category-use entry in the reviewed material; absence is not treated as a ban. |
+| FSSAI *Chapter 2.2: Fats, Oils and Fat Emulsions*, Version 5 and amendment-reference document | <https://www.fssai.gov.in/docs/food-law/regulations/compendium/food-products-standards/Chapter%202_2_Fats_oils%20and%20fat%20emulsions.pdf> and <https://www.fssai.gov.in/docs/food-law/regulations/compendium/food-products-standards/Amendment%20number%20reference.pdf> | Regulation 2.2.3(1), PDF p. 35; 2025-08-01; amendment marker 72 maps to notification dated 2020-12-29 | 2026-11-15 | The compendium sets a 5%-by-weight ceiling for oil, with maximum limits of 3% from 2021-01-01 and 2% from 2022-01-01. This does not establish that every partially hydrogenated oil is prohibited or a product's trans-fat content. |
+| FSSAI *Food Products Standards and Food Additives* amendment index | <https://www.fssai.gov.in/food-law/regulations/amendments/food-products-standards> | Current index lists amendments through no. 84 (2025-07-10) | 2026-11-15 | The index links the 2016 additive-harmonization notification and later amendments; listing metadata alone is not evidence of a particular rule. |
+| FSSAI *Food Safety and Standards (Labelling and Display) Regulations, 2020* and Version VIII compendium | <https://www.fssai.gov.in/docs/food-law/regulations/5fd87c6a0f6adGazette_Notification_Labelling_Display_14_12_2020.pdf> and <https://www.fssai.gov.in/docs/food-law/regulations/Comp_Labelling%20Display_Version%20VIII_09_09_2025.pdf> | F. No. 1-94/FSSAI/SP(Labelling)/2014 (Pt-2), dated 2020-11-17 (5602 GI/2020); Regulation 5(14), original Gazette pp. 36-37; Version VIII dated 2025-09-09, PDF p. 18 | 2026-11-15 | Requires separate “Contains” declaration for gluten cereals, crustaceans, milk, eggs, fish, peanuts/tree nuts, soybeans, and sulphite at 10 mg/kg or more. The exact rule includes exceptions; it does not verify all LabelLens aliases or sesame as an Indian listed allergen. |
+| FSSAI *Food Safety and Standards (Labelling and Display) First Amendment Regulations, 2022* | <https://www.fssai.gov.in/docs/food-law/regulations/amendments/labelling-display/Gazette_Notification_FSS_Label_12_09_2022.pdf> | Gazette No. 442 (6074 GI/2022), published 2022-09-09; Regulation 5(14), amendment PDF p. 2 (Gazette p. 245) and p. 4 (Gazette p. 247) | 2026-11-15 | Adds specified gluten-related exceptions and an exception for oils and distilled alcoholic beverages derived from the listed ingredients. |
+| FSSAI *Food Safety and Standards (Labelling and Display) First Amendment Regulations, 2026* | <https://www.fssai.gov.in/docs/food-law/regulations/amendments/labelling-display/Notification%20dt%2024_03_2026_NRC.pdf> | F. No. STD/SP-08/A1.2022/N-01; dated 2026-03-24; Gazette identifier 2147 GI/2026; clauses 1(2)-2, PDF/Gazette pp. 5-7; effective 2027-07-01 | 2026-11-15 | Complete operative clauses amend Regulations 5(3), 8(1), 10, Schedule I and Schedule II, not Regulation 5(14). This establishes the scope of this amendment only; it does not change the allergen-declaration sub-regulation. |
+| FSSAI *Food Safety and Standards (Labelling and Display) Second Amendment Regulations, 2026* | <https://www.fssai.gov.in/docs/food-law/regulations/amendments/labelling-display/FSS(Labelling%20and%20Display)%20-%20Milk%20logo.pdf> | F. No. SS-T017/1/2023-Standard-FSSAI; dated 2026-11-06; Gazette identifier 8567 GI/2026; clause 2 and inserted Schedule I paragraph (3), PDF/Gazette pp. 3-4; effective 2028-07-01 | 2026-11-15 | Amends Schedule I to insert the milk and milk products logo requirement, not Regulation 5(14). This establishes the scope of this amendment only; it does not change the allergen-declaration sub-regulation. |
+| FSSAI *Labelling and Display* amendment index | <https://www.fssai.gov.in/food-law/regulations/amendments/labelling-display> | Current index lists amendments through 2026-11-06 | 2026-11-15 | Index metadata only for later amendments; not used alone to claim a change to Regulation 5(14). |
+| Codex Alimentarius *General Standard for Food Additives (GSFA) Online Database* | <https://www.fao.org/gsfaonline/additives/index.html?lang=en> and <https://codex.fao.org/codex-texts/dbs/gsfa/en/> | Current GSFA route unavailable | 2026-11-15 | Earlier route returned HTTP 403; the current route redirected to Codex's “Page not found.” The generic link in prior seed records is not evidence for an additive, category, or limit. |
 | EFSA Journal articles at Wiley (including DOI pages for 10.2903/j.efsa.2021.6585 and 10.2903/j.efsa.2011.2392) | <https://www.efsa.europa.eu/en/efsajournal/pub/6585> and <https://www.efsa.europa.eu/en/efsajournal/pub/2392> | Article dates vary; content not accessed | 2026-11-15 | Requests redirected to Wiley pages that returned HTTP 403. The legacy EFSA summaries citing these materials remain unverified in this review. |
+| WHO/FAO JECFA, *Ninety-sixth meeting* | <https://www.who.int/publications/m/item/ninety-sixth-meeting-joint-fao-who-expert-committee-on-food-additives-(jecfa)> | Meeting 2023-06-27 to 2023-07-06; page dated 2023-07-14 | 2026-11-15 | The official meeting page and linked aspartame finding were reachable. The aspartame finding is supported by the IARC/WHO/FAO announcement; the linked JECFA PDF was not independently text-inspected. |
 | U.S. eCFR cited sections (21 CFR §§ 182.3013, 184.1033, 182.3640, 184.1733) | <https://www.ecfr.gov/current/title-21/chapter-I/subchapter-B/part-184/section-184.1033> and corresponding sections | Current codification; source text not accessed | 2026-11-15 | Access was redirected to an eCFR/Federal Register access challenge. These references remain marked unverified; no permission or limit is claimed from them. |
+
+### Phase 5.1.1 source-access update
+
+The earlier note that an expected FSSAI compendium URL returned 404 referred to
+an outdated guessed path. A second review found the correct regulation PDF,
+chapter-wise compendium, amendment index, and selected readable document text.
+The FSSAI allergen declaration list is now documented. The current effect of
+the 2018 potassium-bromate direction relative to the 2011 text, BVO category
+status, and the broader effect of the 2016 titanium-dioxide GMP provision
+remain unresolved. The Phase 5.1.1 review, implementation checks, and
+validation are complete; these legal questions remain explicitly unverified
+rather than being treated as blockers to this conservative audit disposition.
 
 ## Normalized ingredient records
 
@@ -108,10 +144,10 @@ labels are recorded below as **unaccessed legacy citations**, not as evidence.
 
 | Legacy entry (catalog ID) | Previous claim (shortened) | Previously cited source label (not independently accessed) | New status and disposition |
 |---|---|---|---|
-| Potassium bromate (`potassium-bromate`) | IARC 2B / animal tumors; broad country bans; avoid | IARC Monographs 73; JECFA | `REVIEW_REQUIRED`; remove hazard, ban, and recommendation wording until source and jurisdiction checks are complete. |
-| Titanium dioxide (`titanium-dioxide`) | EFSA nanoparticle/genotoxicity conclusion; EU ban; avoid | EFSA FAF Panel 2021 | `REVIEW_REQUIRED`; particle form, regulatory date, and jurisdiction were not verified. |
+| Potassium bromate (`potassium-bromate`) | IARC 2B / animal tumors; broad country bans; avoid | IARC Monographs 73; JECFA | `REVIEW_REQUIRED`; unsupported health wording and broad multi-country claims and the recommendation are withdrawn. FSSAI's 2018 Section 16(5) direction is titled as prohibiting use in any food article; the relationship to the still-present 2011 text and any formal repeal remain unresolved. |
+| Titanium dioxide (`titanium-dioxide`) | EFSA nanoparticle/genotoxicity conclusion; EU ban; avoid | EFSA FAF Panel 2021 | `REVIEW_REQUIRED`; FSSAI's 2016 conditional GMP table and 2025 double-fortified-salt entry are documented, but current scope outside that express entry and particle-form/health claims remain unresolved. |
 | Brominated vegetable oil (`brominated-vegetable-oil`) | Bioaccumulation/cardiac/thyroid effects; U.S./EU bans | FDA final rule 2024; EFSA | `VERIFIED` only for FDA-reported former beverage-stabilizer use and U.S. revocation. No EU or Indian status, product concentration, or product risk is asserted. |
-| Partially hydrogenated oil (`partially-hydrogenated-oil`) | Broad cardiovascular harms; U.S. prohibition/EU limit; avoid | WHO REPLACE; FDA | `REVIEW_REQUIRED`; historical and jurisdiction-specific legal status needs current official sources; recommendation withdrawn. |
+| Partially hydrogenated oil (`partially-hydrogenated-oil`) | Broad cardiovascular harms; U.S. prohibition/EU limit; avoid | WHO REPLACE; FDA | `REVIEW_REQUIRED`; the current FSSAI compendium supports specific trans-fat limits, but does not establish a blanket prohibition on partially hydrogenated oil; legacy recommendation withdrawn. |
 | Propylparaben (`propylparaben`) | Endocrine/reproductive effects; EU prohibition/U.S. restriction | EFSA opinion; Regulation (EC) 1333/2008 | `REVIEW_REQUIRED`; source does not identify the exact claim, dose, or applicable food use. |
 | Potassium iodate (`potassium-iodate`) | Thyroid/renal effects; international and EU/Canada restrictions | JECFA; Codex CXS 152 | `REVIEW_REQUIRED`; exposure conditions and jurisdiction claims were not verified. |
 | Sodium nitrite (`sodium-nitrite`) | Curing benefit vs. high-heat nitrosamines; moderation | IARC Monograph 114; EFSA 2017 | `REVIEW_REQUIRED`; conditions, amounts, and current limits were not verified. |
@@ -154,12 +190,15 @@ labels are recorded below as **unaccessed legacy citations**, not as evidence.
   replaced by `review_required`/`informational` and neutral copy. `counts`
   retains `high`, `moderate`, and `low` keys (zero while no such assessment is
   verified) and adds `review_required` and `informational`.
-- No new India-focused records were added because identity, function, aliases,
-  and regulatory status could not be jointly substantiated from accessible
-  authoritative sources during this review.
-- Remaining work: obtain authoritative FSSAI additive and labeling documents;
-  query Codex GSFA through an accessible official route; retrieve relevant
-  EFSA/JECFA opinions; validate each E/INS number and permitted food category
-  by jurisdiction; verify the remaining 29 legacy summaries; and date/source
-  each of the 9 allergen alias groups. Product concentration and consumption
-  remain unknown even after those references are populated.
+- No new India-focused records or full-record jurisdictional status promotions
+  were made: the inspected FSSAI clauses do not jointly establish identity,
+  function, aliases, category permissions, or later amendments for any full
+  catalog record.
+- Remaining work: resolve the effect of relevant FSSAI additive amendments
+  and directions, especially for potassium bromate, BVO and titanium dioxide;
+  query Codex GSFA through an accessible
+  official route; retrieve relevant EFSA/JECFA opinions; validate each E/INS
+  number and permitted food category by jurisdiction; verify the remaining 29
+  legacy summaries; and date/source each of the 9 allergen alias groups.
+  Product concentration and consumption remain unknown even after those
+  references are populated.

@@ -8,6 +8,7 @@ INGREDIENT_KNOWLEDGE_BASE = (
         "function": "Food ingredient; adds flavor, texture, and protein.",
         "concern_level": "Established hazard in a specific context",
         "concern_status": "evidence_based",
+        "evidence_verified": True,
         "explanation": (
             "Peanut is a major food allergen and can cause serious reactions "
             "in people with peanut allergy. This concern is specific to "
