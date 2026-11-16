@@ -1,5 +1,6 @@
 from datetime import datetime
 from enum import Enum
+import math
 from typing import Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -28,6 +29,22 @@ class AllergenChoice(str, Enum):
     FISH = "Fish"
     SHELLFISH = "Shellfish"
     SESAME = "Sesame"
+
+
+class DietaryPreference(str, Enum):
+    VEGETARIAN = "Vegetarian"
+    VEGAN = "Vegan"
+    GLUTEN_FREE = "Gluten-free"
+    DAIRY_FREE = "Dairy-free"
+
+
+class NutritionGoal(str, Enum):
+    HIGHER_PROTEIN = "higher_protein"
+    HIGHER_FIBER = "higher_fiber"
+    LOWER_SUGAR = "lower_sugar"
+    LOWER_SODIUM = "lower_sodium"
+    LOWER_SATURATED_FAT = "lower_saturated_fat"
+    LOWER_CALORIES = "lower_calories"
 
 
 def _normalize_choices(
@@ -60,6 +77,14 @@ class HealthProfileUpdate(BaseModel):
     health_conditions: list[HealthConditionChoice] = Field(max_length=8)
     allergens: list[AllergenChoice] = Field(max_length=9)
     custom_allergens: list[str] = Field(max_length=20)
+    dietary_preferences: list[DietaryPreference] = Field(
+        default_factory=list,
+        max_length=4,
+    )
+    ingredient_exclusions: list[str] = Field(default_factory=list, max_length=20)
+    nutrition_goals: list[NutritionGoal] = Field(default_factory=list, max_length=6)
+    calorie_goal_kcal: float | None = Field(default=None, ge=500, le=10000)
+    protein_goal_g: float | None = Field(default=None, ge=1, le=400)
 
     @field_validator("name")
     @classmethod
@@ -101,6 +126,37 @@ class HealthProfileUpdate(BaseModel):
                 seen.add(key)
         return normalized
 
+    @field_validator("dietary_preferences", mode="before")
+    @classmethod
+    def normalize_dietary_preferences(cls, value) -> list[str]:
+        return _normalize_choices(value, DietaryPreference, "dietary preference")
+
+    @field_validator("nutrition_goals", mode="before")
+    @classmethod
+    def normalize_nutrition_goals(cls, value) -> list[str]:
+        return _normalize_choices(value, NutritionGoal, "nutrition goal")
+
+    @field_validator("ingredient_exclusions")
+    @classmethod
+    def normalize_ingredient_exclusions(cls, values: list[str]) -> list[str]:
+        normalized = []
+        seen = set()
+        for value in values:
+            name = value.strip()
+            if not name or len(name) > 120:
+                raise ValueError("Ingredient exclusions must be 1-120 characters.")
+            if name.casefold() not in seen:
+                normalized.append(name)
+                seen.add(name.casefold())
+        return normalized
+
+    @field_validator("calorie_goal_kcal", "protein_goal_g")
+    @classmethod
+    def validate_finite_daily_targets(cls, value: float | None) -> float | None:
+        if value is not None and not math.isfinite(value):
+            raise ValueError("Daily nutrition targets must be finite.")
+        return value
+
     @model_validator(mode="after")
     def reject_standard_allergens_as_custom(self):
         standard_names = {choice.value.casefold() for choice in AllergenChoice}
@@ -117,4 +173,9 @@ class HealthProfileResponse(BaseModel):
     health_conditions: list[HealthConditionChoice]
     allergens: list[AllergenChoice]
     custom_allergens: list[str]
+    dietary_preferences: list[DietaryPreference]
+    ingredient_exclusions: list[str]
+    nutrition_goals: list[NutritionGoal]
+    calorie_goal_kcal: float | None
+    protein_goal_g: float | None
     updated_at: datetime

@@ -72,6 +72,7 @@ _NUTRIENT_DEFINITIONS = {
         "g",
     ),
     "protein_g": (r"protein", "g"),
+    "fiber_g": (r"(?:dietary[ \t]+)?fib(?:er|re)", "g"),
     "salt_g": (r"salt", "g"),
 }
 _NUTRIENT_PATTERNS = {
@@ -109,8 +110,11 @@ _SERVING_UNIT = re.compile(
     re.IGNORECASE,
 )
 _PRODUCT_NAME = re.compile(
-    r"^[ \t]*(?:product(?:[ \t]+name)?|name[ \t]+of[ \t]+product)"
-    r"[ \t]*[:\-][ \t]*(?P<value>.+?)[ \t]*$",
+    r"^[ \t]*(?:"
+    r"product(?:[ \t]+name)?|"
+    r"(?:name(?:[ \t]+of)?(?:[ \t]+the)?[ \t]+(?:product|food))|"
+    r"(?:food(?:[ \t]+name)?)"
+    r")[ \t]*[:\-][ \t]*(?P<value>.+?)[ \t]*$",
     re.IGNORECASE,
 )
 _INGREDIENTS = re.compile(
@@ -121,7 +125,13 @@ _INGREDIENT_STOP = re.compile(
     r"^[ \t]*(?:contains|may[ \t]+contain|allergen(?:s)?"
     r"(?:[ \t]+(?:information|advice|declaration))?|"
     r"nutrition[ \t]+facts|warning|storage|"
-    r"fssai\b|fssai[ \t]+lic)",
+    r"fssai\b|fssai[ \t]+lic|"
+    r"per[ \t]*100[ \t]*(?:g|ml)|"
+    r"(?:(?:total|added|saturated|trans)[ \t]+)?"
+    r"(?:fat|sugars?|sodium|protein|energy|calories?|"
+    r"carbohydrates?|carbs?|dietary[ \t]+fib(?:er|re)|salt)"
+    r"(?:[ \t]*\([ \t]*(?:g|mg|kcal|kj)[ \t]*\))?"
+    r"(?:[ \t]*[:\-][ \t]*|[ \t]+\d))",
     re.IGNORECASE,
 )
 _CONTAINS_DECLARATION = re.compile(
@@ -137,13 +147,19 @@ _MAY_CONTAIN_DECLARATION = re.compile(
 )
 _FSSAI_LICENSE = re.compile(
     r"^[ \t]*FSSAI[ \t]+"
-    r"(?:(?:license|licence|lic\.?)[ \t]*"
+    r"(?:(?:license|licence|lic\.?|registration|reg(?:n|istration)?|cert(?:ificate)?|"
+    r"no\.?|number)[ \t]*"
     r"(?:(?:no\.?|number)[ \t]*)?|(?:no\.?|number)[ \t]*)"
-    r"[:#\-]?[ \t]*(?P<number>\d(?:[ \t\-]*\d){13}\b)?[ \t]*$",
+    r"[:#\-]?[ \t]*(?P<number>[0-9OQILSBGZ](?:[ \t\-/]*[0-9OQILSBGZ]){13}\b)?[ \t]*$",
     re.IGNORECASE,
 )
 _FSSAI_NUMBER_ONLY = re.compile(
-    r"^[ \t]*(?P<number>\d(?:[ \t\-]*\d){13})[ \t]*$"
+    r"^[ \t]*(?P<number>[0-9OQILSBGZ](?:[ \t\-/]*[0-9OQILSBGZ]){13})[ \t]*$",
+    re.IGNORECASE,
+)
+_FSSAI_CANDIDATE = re.compile(
+    r"(?<!\d)(?:[0-9OQILSBGZ](?:[ \t\-/]*[0-9OQILSBGZ]){13})(?!\d)",
+    re.IGNORECASE,
 )
 _INLINE_MAY_CONTAIN = re.compile(r"\bmay[ \t]+contain\b", re.IGNORECASE)
 
@@ -449,20 +465,71 @@ def _extract_allergen_declarations(
     )
 
 
+_OCR_FSSAI_DIGIT_MAP = {
+    "O": "0",
+    "Q": "0",
+    "D": "0",
+    "I": "1",
+    "L": "1",
+    "S": "5",
+    "B": "8",
+    "G": "6",
+    "Z": "2",
+    "T": "7",
+}
+
+
+def _normalize_fssai_number(value: str | None) -> str | None:
+    if value is None:
+        return None
+    digits = []
+    for character in value.strip():
+        if character.isdigit():
+            digits.append(character)
+            continue
+        if character.isalpha():
+            digit = _OCR_FSSAI_DIGIT_MAP.get(character.upper())
+            if digit is not None:
+                digits.append(digit)
+            continue
+        if character in " -_/|.:\t":
+            continue
+        if character in ",;":
+            continue
+    normalized = "".join(digits)
+    if len(normalized) != 14:
+        return None
+    return normalized
+
+
 def _extract_fssai_license(lines: list[str]) -> dict:
     matches: list[tuple[str, str | None]] = []
     for index, line in enumerate(lines):
         match = _FSSAI_LICENSE.match(line)
-        if match is None:
+        if match is not None:
+            number = _normalize_fssai_number(match.group("number"))
+            source_text = line
+            if number is None and index + 1 < len(lines):
+                number_match = _FSSAI_NUMBER_ONLY.match(lines[index + 1])
+                if number_match:
+                    number = _normalize_fssai_number(number_match.group("number"))
+                    source_text = f"{line}\n{lines[index + 1]}"
+            matches.append((source_text, number))
             continue
-        number = match.group("number")
-        source_text = line
-        if number is None and index + 1 < len(lines):
-            number_match = _FSSAI_NUMBER_ONLY.match(lines[index + 1])
-            if number_match:
-                number = number_match.group("number")
-                source_text = f"{line}\n{lines[index + 1]}"
-        matches.append((source_text, number))
+
+        if "fssai" in line.casefold():
+            candidate = _FSSAI_CANDIDATE.search(line)
+            if candidate is not None:
+                number = _normalize_fssai_number(candidate.group(0))
+                if number is not None:
+                    matches.append((line, number))
+                    continue
+            if index + 1 < len(lines):
+                candidate = _FSSAI_CANDIDATE.search(lines[index + 1])
+                if candidate is not None:
+                    number = _normalize_fssai_number(candidate.group(0))
+                    if number is not None:
+                        matches.append((f"{line}\n{lines[index + 1]}", number))
 
     if len(matches) != 1 or matches[0][1] is None:
         return _field(
@@ -471,7 +538,7 @@ def _extract_fssai_license(lines: list[str]) -> dict:
         )
     source_text, number = matches[0]
     assert number is not None
-    return _field(re.sub(r"\D", "", number), source_text=source_text)
+    return _field(number, source_text=source_text)
 
 
 def parse_label_text(ocr_text: str) -> dict:

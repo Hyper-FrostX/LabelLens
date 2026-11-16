@@ -114,6 +114,19 @@ def _png_image_bytes() -> bytes:
     return image_bytes.getvalue()
 
 
+def _mock_image_data(ocr_text: str) -> dict:
+    return {
+        "ocr_text": ocr_text,
+        "raw_ocr_text": ocr_text,
+        "regions": [],
+        "fields": [],
+        "symbol_detection": {"image_inspected": True},
+        "processing": {"original_image_unchanged": True},
+        "ocr_quality": {"mean_word_confidence": None},
+        "ocr_passes": [],
+    }
+
+
 def test_label_extraction_endpoint_returns_mocked_ocr_results(monkeypatch):
     ocr_text = "\n".join(
         [
@@ -127,7 +140,11 @@ def test_label_extraction_endpoint_returns_mocked_ocr_results(monkeypatch):
             "Ingredients: oats, spices (cinnamon, nutmeg), honey",
         ]
     )
-    monkeypatch.setattr(label_ocr, "extract_text", lambda _: ocr_text)
+    monkeypatch.setattr(
+        label_ocr,
+        "extract_image_data",
+        lambda _: _mock_image_data(ocr_text),
+    )
 
     response = client.post(
         "/extract/label",
@@ -153,6 +170,9 @@ def test_label_extraction_endpoint_returns_mocked_ocr_results(monkeypatch):
         "honey",
     ]
     assert result["ocr_text"] == ocr_text
+    assert result["raw_ocr_text"] == ocr_text
+    assert result["processing"]["original_image_unchanged"] is True
+    assert result["symbol_detection"]["image_inspected"] is True
     assert "sugar_g" in result["review_required_fields"]
 
 
@@ -201,8 +221,8 @@ def test_label_extraction_endpoint_rejects_oversized_upload():
 def test_label_extraction_endpoint_flags_partial_unreadable_data(monkeypatch):
     monkeypatch.setattr(
         label_ocr,
-        "extract_text",
-        lambda _: "Nutrition Facts\nIngredients: oats",
+        "extract_image_data",
+        lambda _: _mock_image_data("Nutrition Facts\nIngredients: oats"),
     )
 
     response = client.post(
@@ -228,7 +248,7 @@ def test_label_extraction_endpoint_reports_unavailable_ocr(monkeypatch):
     def unavailable_ocr(_):
         raise label_ocr.OCRServiceError("Local Tesseract OCR is unavailable.")
 
-    monkeypatch.setattr(label_ocr, "extract_text", unavailable_ocr)
+    monkeypatch.setattr(label_ocr, "extract_image_data", unavailable_ocr)
 
     response = client.post(
         "/extract/label",

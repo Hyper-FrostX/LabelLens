@@ -2,17 +2,31 @@
 import math
 from typing import Literal
 
-from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
+from sqlalchemy import select
+from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
+from sqlalchemy.orm import selectinload
 from starlette.concurrency import run_in_threadpool
 
 from app.api.auth import router as auth_router
 from app.api.personalized_analysis import router as personalized_analysis_router
 from app.api.profile import router as profile_router
-from app.database.config import get_optional_db
+from app.database.config import get_db, get_optional_db
+from app.models import AnalysisReport, Scan, User
 from app.repositories.ingredient_knowledge_repository import IngredientKnowledgeRepository
+from app.repositories.product_repository import ProductRepository
+from app.repositories.profile_repository import ProfileRepository
+from app.repositories.scan_repository import ScanRepository
+from app.security.dependencies import get_optional_current_user
+from app.security.dependencies import get_current_user
+from app.schemas.scans import (
+    AnalysisReportCreate,
+    ExtractedLabelCreate,
+    ScanCreate,
+    ScanRead,
+)
 from app.services import label_ocr
 from app.services.additive_detector import (
     ConcernLevel,
@@ -23,6 +37,17 @@ from app.services.label_analysis import analyze_label
 from app.services.ingredient_analysis import analyze_ingredients
 from app.services.label_parser import parse_label_text, split_ingredients_text
 from app.services.nutrition import analyze_nutrition
+from app.schemas.product_analysis import ProductAnalysisInput, ProductQuestionInput
+from app.schemas.product_comparison import ProductComparisonInput
+from app.schemas.label_compliance import (
+    LabelComplianceInput,
+    LabelComplianceReport,
+)
+from app.services.product_analysis import analyze_product, answer_product_question
+from app.services.product_assistant import ask_product_question
+from app.services.product_comparison import compare_saved_product_reports
+from app.services.label_compliance import analyze_label_compliance
+from app.models.enums import ScanStatus
 
 
 MAX_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024
@@ -30,7 +55,7 @@ MAX_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024
 
 app = FastAPI(
     title="Label Lens API",
-    description="AI-powered food label analysis and nutrition intelligence",
+    description="Food label analysis and nutrition intelligence",
     version="0.3.0",
 )
 
@@ -181,6 +206,229 @@ def label_analysis_endpoint(
     return analyze_label(data, knowledge_records=knowledge_records)
 
 
+@app.post("/analyze/product")
+def product_analysis_endpoint(
+    data: ProductAnalysisInput,
+    session: Session | None = Depends(get_optional_db),
+    current_user: User | None = Depends(get_optional_current_user),
+):
+    knowledge_records = (
+        IngredientKnowledgeRepository.load_catalog(session)
+        if session is not None
+        else None
+    )
+    if current_user is not None and session is not None:
+        current_user = ProfileRepository.get_for_user(session, current_user.id)
+    stored_products = ProductRepository.list_with_nutrients(session) if session else []
+    if session is not None and current_user is not None:
+        saved_reports = session.scalars(
+            select(AnalysisReport.analysis_data)
+            .join(Scan, Scan.id == AnalysisReport.scan_id)
+            .where(Scan.user_id == current_user.id)
+            .order_by(AnalysisReport.created_at.desc())
+            .limit(50)
+        ).all()
+        stored_products.extend(saved_reports)
+    result = analyze_product(
+        data,
+        knowledge_records=knowledge_records,
+        current_user=current_user,
+        stored_products=stored_products,
+    )
+    result["compliance_report"] = analyze_label_compliance(
+        data.label_text or "",
+        product_category=data.product_category,
+        knowledge_records=knowledge_records,
+        label_corrections=data.label_corrections,
+        corrections_confirmed=data.corrections_confirmed,
+        extraction_metadata=data.extraction_metadata,
+        symbol_review=data.symbol_review,
+    )
+    if data.save_to_history:
+        if current_user is None or session is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Sign in to save this analysis to your scan history.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        scan = ScanRepository.create_for_user(
+            session,
+            user_id=current_user.id,
+            data=ScanCreate(),
+        )
+        scan.scan_status = ScanStatus.COMPLETED
+        ScanRepository.save_extracted_label(
+            session,
+            scan_id=scan.id,
+            user_id=current_user.id,
+            data=ExtractedLabelCreate(
+                extracted_data=data.model_dump(
+                    mode="json",
+                    exclude={"save_to_history"},
+                ),
+                ocr_text=data.label_text or data.ingredients_text or "",
+                extraction_version="reviewed-product-analysis-v1",
+            ),
+        )
+        score = result["nutrition"]["health_score"]
+        ScanRepository.add_analysis_report(
+            session,
+            scan_id=scan.id,
+            user_id=current_user.id,
+            data=AnalysisReportCreate(
+                health_score=score["score"]
+                if score["status"] == "available"
+                else None,
+                analysis_data={
+                    "product_report": result,
+                    "input": data.model_dump(
+                        mode="json",
+                        exclude={"save_to_history"},
+                    ),
+                },
+                scoring_version=(
+                    "label-lens-nutrition-v1"
+                    if score["status"] == "available"
+                    else "unavailable"
+                ),
+            ),
+        )
+        session.commit()
+        result["saved_scan_id"] = scan.id
+    return result
+
+
+@app.post(
+    "/analyze/label-compliance",
+    response_model=LabelComplianceReport,
+    description=(
+        "Inspect OCR label text for Indian packaged-food declarations. "
+        "This does not determine legal compliance or verify an FSSAI license."
+    ),
+)
+def label_compliance_endpoint(
+    data: LabelComplianceInput,
+    session: Session | None = Depends(get_optional_db),
+):
+    knowledge_records = (
+        IngredientKnowledgeRepository.load_catalog(session)
+        if session is not None
+        else None
+    )
+    return analyze_label_compliance(
+        data.label_text,
+        product_category=data.product_category,
+        knowledge_records=knowledge_records,
+        label_corrections=data.label_corrections,
+        corrections_confirmed=data.corrections_confirmed,
+        extraction_metadata=data.extraction_metadata,
+        symbol_review=data.symbol_review,
+    )
+
+
+@app.post("/analyze/product/question")
+def product_question_endpoint(data: ProductQuestionInput):
+    result = answer_product_question(
+        data.question,
+        data.context,
+        explanation_level=data.explanation_level,
+    )
+    return result
+
+
+@app.post("/analyze/product/ask")
+def product_ask_endpoint(
+    data: ProductQuestionInput,
+    current_user: User | None = Depends(get_optional_current_user),
+):
+    return ask_product_question(
+        data.question,
+        data.context,
+        explanation_level=data.explanation_level,
+        user_id=current_user.id if current_user is not None else None,
+    )
+
+
+@app.post("/scans/compare")
+def compare_saved_scans_endpoint(
+    data: ProductComparisonInput,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_db),
+):
+    scans = list(
+        session.scalars(
+            select(Scan)
+            .options(selectinload(Scan.analysis_reports))
+            .where(
+                Scan.user_id == current_user.id,
+                Scan.id.in_(data.scan_ids),
+            )
+        ).unique()
+    )
+    if len(scans) != len(data.scan_ids):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="One or more saved scans were not found.",
+        )
+    scans_by_id = {scan.id: scan for scan in scans}
+    reports = []
+    for scan_id in data.scan_ids:
+        scan = scans_by_id[scan_id]
+        if not scan.analysis_reports:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Every selected scan must have a saved product analysis.",
+            )
+        report = scan.analysis_reports[-1]
+        reports.append(
+            {
+                "scan_id": scan.id,
+                "analysis_data": report.analysis_data,
+            }
+        )
+    try:
+        return compare_saved_product_reports(
+            reports,
+            recommendation_goal=data.recommendation_goal,
+        )
+    except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="A saved analysis could not be compared because its data is invalid.",
+        ) from error
+
+
+@app.get("/scans", response_model=list[ScanRead])
+def list_scan_history(
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_db),
+):
+    return ScanRepository.list_for_user(
+        session,
+        user_id=current_user.id,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@app.get("/scans/{scan_id}", response_model=ScanRead)
+def read_scan_history_item(
+    scan_id: int,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_db),
+):
+    scan = ScanRepository.get_for_user(
+        session,
+        scan_id=scan_id,
+        user_id=current_user.id,
+    )
+    if scan is None:
+        raise HTTPException(status_code=404, detail="Scan was not found.")
+    return scan
+
+
 @app.post(
     "/extract/label",
     description=(
@@ -209,11 +457,32 @@ async def extract_label_endpoint(
         raise HTTPException(status_code=400, detail=str(error)) from error
 
     try:
-        ocr_text = await run_in_threadpool(label_ocr.extract_text, image_bytes)
+        image_data = await run_in_threadpool(label_ocr.extract_image_data, image_bytes)
     except label_ocr.OCRServiceError as error:
         raise HTTPException(status_code=503, detail=str(error)) from error
 
+    ocr_text = image_data["ocr_text"]
     parsed = parse_label_text(ocr_text)
+    parsed.update(
+        {
+            "raw_ocr_text": image_data["raw_ocr_text"],
+            "regions": image_data["regions"],
+            "fields": image_data["fields"],
+            "symbol_detection": image_data["symbol_detection"],
+            "processing": image_data["processing"],
+            "ocr_quality": image_data["ocr_quality"],
+            "ocr_passes": image_data["ocr_passes"],
+        }
+    )
+    parsed["compliance_report"] = analyze_label_compliance(
+        ocr_text,
+        extraction_metadata=image_data,
+        knowledge_records=(
+            IngredientKnowledgeRepository.load_catalog(session)
+            if session is not None
+            else None
+        ),
+    )
     ingredient_target = parsed.get("ingredients") or parsed.get("ingredients_text")
     parsed["additive_analysis"] = detect_additives(ingredient_target)
     knowledge_records = (

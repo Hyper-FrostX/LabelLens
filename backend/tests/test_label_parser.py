@@ -80,6 +80,7 @@ def test_parser_marks_all_extracted_nutrients_for_review_without_confidence():
         "trans_fat_g",
         "carbohydrates_g",
         "protein_g",
+        "fiber_g",
         "salt_g",
         "ingredients",
         "allergens",

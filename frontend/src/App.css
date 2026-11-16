@@ -2157,6 +2157,92 @@
   }
 }
 
+.review-image-preview {
+  margin: 0 0 22px;
+  padding: 12px;
+  border: 1px solid #e3eae4;
+  border-radius: 12px;
+  background: #f8faf8;
+}
+
+.review-image-preview img {
+  display: block;
+  width: 100%;
+  max-height: 360px;
+  object-fit: contain;
+  border-radius: 8px;
+  background: #eef2ee;
+}
+
+.review-image-preview figcaption {
+  margin-top: 8px;
+  color: #748078;
+  font-size: 10px;
+}
+
+.review-other-fields,
+.review-symbol-section,
+.review-extraction-details {
+  margin-top: 20px;
+  padding: 15px;
+  border: 1px solid #e3eae4;
+  border-radius: 12px;
+  background: #fbfcfb;
+}
+
+.review-other-fields legend,
+.review-symbol-section h3 {
+  padding: 0 5px;
+  color: #384d3e;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.review-other-fields > p,
+.review-symbol-section > p {
+  color: #748078;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.review-other-fields > label {
+  margin-top: 12px;
+}
+
+.review-extraction-details > summary {
+  color: #48604f;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.review-extraction-details section {
+  margin-top: 15px;
+}
+
+.review-extraction-details h4 {
+  margin: 8px 0;
+  color: #384d3e;
+  font-size: 11px;
+}
+
+.review-extraction-details ul {
+  padding-left: 19px;
+  color: #627066;
+  font-size: 10px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.review-extraction-details pre {
+  max-height: 180px;
+  overflow: auto;
+  padding: 8px;
+  border-radius: 7px;
+  background: #f1f5f1;
+  white-space: pre-wrap;
+}
+
 @media (max-width: 540px) {
   .app-shell {
     width: min(100% - 24px, 480px);
@@ -2219,6 +2305,12 @@
     grid-column: auto;
   }
 
+  .review-other-fields,
+  .review-symbol-section,
+  .review-extraction-details {
+    padding: 12px;
+  }
+
   .confirm-button {
     max-width: none;
   }
@@ -2270,6 +2362,656 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+.analysis-display-toggle,
+.product-analysis-section,
+.product-qa-section,
+.food-intelligence-section {
+  margin-top: 16px;
+  padding: 18px;
+  border: 1px solid #e1e9e2;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.analysis-display-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  color: #2d4536;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.analysis-display-toggle label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.analysis-display-toggle p {
+  flex-basis: 100%;
+  margin: 0;
+  color: #697c71;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.legacy-api-notice {
+  margin: 14px 0;
+  padding: 12px 14px;
+  border: 1px solid #e8ddb8;
+  border-radius: 10px;
+  background: #fffaf0;
+  color: #66572c;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.manual-product-fields {
+  display: grid;
+  gap: 12px;
+  margin: 0 0 18px;
+}
+
+.manual-product-fields input,
+.manual-product-fields textarea {
+  width: 100%;
+  margin-top: 6px;
+  padding: 11px 12px;
+  border: 1px solid #dfe7e0;
+  border-radius: 10px;
+  background: #fcfdfb;
+  color: #223c2f;
+  font: inherit;
+}
+
+.product-analysis-sections {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.product-analysis-section {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.food-intelligence-section {
+  grid-column: 1 / -1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.food-score-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.food-score-card,
+.food-intelligence-subsection {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #e8eee8;
+  border-radius: 10px;
+  background: #fcfdfb;
+}
+
+.food-score-card h4,
+.food-intelligence-subsection h4 {
+  margin: 0 0 8px;
+  color: #2d4536;
+  font-size: 14px;
+}
+
+.food-score-card strong {
+  display: block;
+  margin: 5px 0;
+  color: #274c35;
+  font-size: 22px;
+}
+
+.food-score-card p,
+.food-intelligence-subsection p {
+  color: #53665a;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.food-score-card details,
+.food-intelligence-section details {
+  margin-top: 10px;
+  color: #53665a;
+  font-size: 12px;
+}
+
+.food-score-card pre {
+  max-width: 100%;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.food-intelligence-subsection {
+  margin-top: 12px;
+}
+
+.product-analysis-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.product-analysis-section h3,
+.food-intelligence-section h3,
+.product-qa-section h3 {
+  margin: 0;
+  color: #223c2f;
+  font-size: 16px;
+  font-weight: 720;
+}
+
+.product-status {
+  display: inline-flex;
+  flex-shrink: 0;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #f0f4f1;
+  color: #53665a;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.product-analysis-data {
+  margin: 0;
+}
+
+.product-analysis-data > div + div {
+  margin-top: 9px;
+}
+
+.product-analysis-data dt {
+  color: #697c71;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.product-analysis-data dd {
+  margin: 2px 0 0;
+  color: #334b3c;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.compliance-report {
+  grid-column: 1 / -1;
+  min-width: 0;
+  padding: 22px;
+  border: 1px solid #dfe9e1;
+  border-radius: 16px;
+  background: #fbfdfb;
+  color: #334b3c;
+  overflow-wrap: anywhere;
+}
+
+.compliance-report-header,
+.compliance-finding-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.compliance-report-header h2 {
+  margin: 0;
+  color: #223c2f;
+  font-size: 20px;
+}
+
+.compliance-report h3 {
+  margin: 0 0 9px;
+  color: #223c2f;
+  font-size: 15px;
+}
+
+.compliance-disclaimer {
+  margin: 14px 0;
+  padding: 11px 13px;
+  border-left: 3px solid #bd8b35;
+  background: #fffaf0;
+  color: #5b4a2d;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.compliance-license,
+.compliance-report-grid > section,
+.compliance-regulatory,
+.compliance-limitations {
+  min-width: 0;
+  padding: 15px;
+  border: 1px solid #e5ece6;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.compliance-license {
+  margin-bottom: 12px;
+}
+
+.compliance-license dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 18px;
+  margin: 12px 0;
+}
+
+.compliance-license dt {
+  color: #697c71;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.compliance-license dd {
+  margin: 3px 0 0;
+  font-size: 13px;
+}
+
+.compliance-license p,
+.compliance-report-grid p,
+.compliance-finding p {
+  color: #596c60;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.compliance-report-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.compliance-status {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  max-width: 100%;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #eff3f0;
+  color: #526459;
+  font-size: 10px;
+  font-weight: 750;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.compliance-status-pass {
+  background: #e8f3eb;
+  color: #28603e;
+}
+
+.compliance-status-potential_issue,
+.compliance-status-needs_manual_review {
+  background: #fff2d9;
+  color: #795512;
+}
+
+.compliance-status-missing_information {
+  background: #f0f1f0;
+  color: #59645d;
+}
+
+.compliance-status-not_applicable,
+.compliance-status-not_evaluated {
+  background: #edf1f4;
+  color: #4a5e6b;
+}
+
+.compliance-findings,
+.compliance-source-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.compliance-finding {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #edf1ed;
+  border-radius: 9px;
+  background: #fcfdfc;
+}
+
+.compliance-finding-heading strong {
+  color: #334b3c;
+  font-size: 12px;
+  text-transform: capitalize;
+}
+
+.compliance-finding p {
+  margin: 6px 0 0;
+}
+
+.compliance-value {
+  color: #334b3c !important;
+  font-weight: 650;
+}
+
+.compliance-evidence,
+.compliance-regulatory,
+.compliance-limitations {
+  margin-top: 9px;
+  color: #53665a;
+  font-size: 12px;
+}
+
+.compliance-evidence summary,
+.compliance-regulatory summary,
+.compliance-limitations summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.compliance-evidence pre {
+  max-height: 180px;
+  margin: 8px 0 0;
+  padding: 9px;
+  overflow: auto;
+  border-radius: 7px;
+  background: #f3f6f3;
+  color: #334b3c;
+  font: 11px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
+  white-space: pre-wrap;
+}
+
+.compliance-regulatory,
+.compliance-limitations {
+  margin-top: 12px;
+}
+
+.compliance-regulatory > ul {
+  margin-top: 12px;
+}
+
+.compliance-source-list {
+  margin-top: 16px !important;
+}
+
+.compliance-source-list li {
+  display: grid;
+  gap: 4px;
+  padding: 9px 0;
+  border-top: 1px solid #edf1ed;
+}
+
+.compliance-source-list a {
+  color: #225c47;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.compliance-source-list span {
+  color: #697c71;
+  font-size: 11px;
+}
+
+.product-analysis-value-list {
+  margin: 4px 0 0;
+  padding-left: 20px;
+}
+
+.product-analysis-value-list li + li {
+  margin-top: 6px;
+}
+
+.product-qa-section > p {
+  color: #697c71;
+  font-size: 13px;
+}
+
+.product-qa-section .product-qa-privacy {
+  color: #806334;
+}
+
+.product-qa-mode {
+  font-weight: 700;
+}
+
+.product-qa-section form {
+  display: grid;
+  gap: 12px;
+}
+
+.product-qa-section textarea {
+  width: 100%;
+  margin-top: 6px;
+  padding: 12px 14px;
+  border: 1px solid #dfe7e0;
+  border-radius: 10px;
+  background: #fcfdfb;
+  color: #223c2f;
+  font: inherit;
+}
+
+.product-qa-answer {
+  margin-top: 16px;
+  padding: 14px;
+  border-radius: 10px;
+  background: #f6faf7;
+  color: #334b3c;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.product-qa-answer pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+}
+
+.account-panel {
+  margin: 18px 0;
+  padding: 14px 18px;
+  border: 1px solid #e1e9e2;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.account-panel > summary {
+  color: #223c2f;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.saved-scan-selection {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.saved-product-comparison {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #e8eee8;
+}
+
+.saved-product-comparison h3 {
+  margin: 0 0 6px;
+  color: #223c2f;
+  font-size: 15px;
+}
+
+.saved-product-comparison > p,
+.saved-comparison-results {
+  color: #53665a;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.comparison-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.saved-comparison-results table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  text-align: left;
+}
+
+.saved-comparison-results caption {
+  padding: 7px 0;
+  color: #334b3c;
+  font-weight: 700;
+  text-align: left;
+}
+
+.saved-comparison-results th,
+.saved-comparison-results td {
+  min-width: 100px;
+  padding: 8px;
+  border: 1px solid #e1e9e2;
+}
+
+.saved-comparison-results th {
+  color: #334b3c;
+  background: #f5f8f5;
+}
+
+.saved-comparison-product-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.saved-comparison-product-details article {
+  padding: 12px;
+  border: 1px solid #e1e9e2;
+  border-radius: 10px;
+}
+
+.saved-comparison-product-details h4 {
+  margin: 0 0 6px;
+  color: #334b3c;
+}
+
+.account-content {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.account-content form {
+  display: grid;
+  gap: 12px;
+}
+
+.account-choice-fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid #e1e9e2;
+  border-radius: 10px;
+}
+
+.account-choice-fieldset legend {
+  padding: 0 5px;
+  color: #53665a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.account-choice-fieldset label,
+.save-history-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #334b3c;
+  font-size: 13px;
+}
+
+.account-actions,
+.account-mode-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.account-mode-toggle button {
+  padding: 8px 12px;
+  border: 1px solid #dfe7e0;
+  border-radius: 8px;
+  background: #fff;
+  color: #334b3c;
+  cursor: pointer;
+}
+
+.account-mode-toggle button[aria-pressed="true"] {
+  border-color: #537c60;
+  background: #f0f6f0;
+  font-weight: 700;
+}
+
+.scan-history ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.scan-history li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid #edf1ed;
+  color: #53665a;
+  font-size: 12px;
+}
+
+.scan-history li strong {
+  color: #223c2f;
+}
+
+@media (max-width: 680px) {
+  .product-analysis-sections {
+    grid-template-columns: 1fr;
+  }
+
+  .compliance-report {
+    padding: 14px;
+  }
+
+  .compliance-report-grid,
+  .compliance-license dl {
+    grid-template-columns: 1fr;
+  }
+
+  .scan-history li {
+    grid-template-columns: 1fr;
+  }
+
+  .food-score-grid {
+    grid-template-columns: 1fr;
   }
 }
 

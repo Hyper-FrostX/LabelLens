@@ -6,8 +6,10 @@ from sqlalchemy import (
     DateTime,
     Enum as SAEnum,
     ForeignKey,
+    Float,
     Index,
     Integer,
+    JSON,
     String,
     Text,
     UniqueConstraint,
@@ -91,6 +93,11 @@ class HealthProfile(Base):
         default=ExpertiseLevel.BEGINNER,
         nullable=False,
     )
+    dietary_preferences: Mapped[list[str] | None] = mapped_column(JSON)
+    ingredient_exclusions: Mapped[list[str] | None] = mapped_column(JSON)
+    nutrition_goals: Mapped[list[str] | None] = mapped_column(JSON)
+    calorie_goal_kcal: Mapped[float | None] = mapped_column(Float)
+    protein_goal_g: Mapped[float | None] = mapped_column(Float)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=utc_now,

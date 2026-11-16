@@ -1,14 +1,17 @@
-import IngredientAnalysisResults from "./IngredientAnalysisResults";
 import {
   formatBasis,
   formatValue,
   nutrientLabels,
 } from "./nutritionUtils";
+import { getSectionStatus } from "./productAnalysisUtils";
 
 export default function NutritionReport({
   analysisResult,
   resultSectionRef,
+  expertMode,
 }) {
+  const nutrition = analysisResult.nutrition_analysis ?? analysisResult;
+  const hasExcessNutrients = Array.isArray(nutrition.excess_nutrients);
   return (
     <div
       ref={resultSectionRef}
@@ -22,45 +25,48 @@ export default function NutritionReport({
             <p className="step-label">NUTRIENT SUMMARY</p>
             <h3 id="health-score-title">Experimental Label Lens Health Score</h3>
           </div>
-          {analysisResult.health_score?.status === "available" ? (
+          <span className="product-status" role="status">
+            {getSectionStatus(nutrition)}
+          </span>
+          {nutrition.health_score?.status === "available" ? (
             <div className="health-score-value">
-              <strong>{analysisResult.health_score.score}</strong>
+              <strong>{nutrition.health_score.score}</strong>
               <span>out of 100</span>
             </div>
           ) : (
             <strong className="health-score-unavailable">Score unavailable</strong>
           )}
         </div>
-        {analysisResult.health_score?.status === "available" && (
+        {nutrition.health_score?.status === "available" && (
           <div
             className="health-score-progress"
             role="progressbar"
             aria-label="Experimental Label Lens Health Score"
             aria-valuemin="0"
             aria-valuemax="100"
-            aria-valuenow={analysisResult.health_score.score}
-            aria-valuetext={`${analysisResult.health_score.score} out of 100`}
+            aria-valuenow={nutrition.health_score.score}
+            aria-valuetext={`${nutrition.health_score.score} out of 100`}
           >
-            <span style={{ width: `${analysisResult.health_score.score}%` }} />
+            <span style={{ width: `${nutrition.health_score.score}%` }} />
           </div>
         )}
         <p className="score-completeness">
-          {analysisResult.health_score?.data_completeness?.text ??
+          {nutrition.health_score?.data_completeness?.text ??
             "Nutrient completeness unavailable"}
         </p>
-        {analysisResult.health_score?.status === "available" ? (
+        {nutrition.health_score?.status === "available" ? (
           <p className="score-explanation">
-            {analysisResult.health_score.explanation}
+            {nutrition.health_score.explanation}
           </p>
         ) : (
           <p className="score-unavailable-reason" role="status">
-            {analysisResult.health_score?.explanation ??
+            {nutrition.health_score?.explanation ??
               "The backend did not return a health-score assessment."}
           </p>
         )}
-        {analysisResult.health_score?.factors?.length > 0 && (
+        {expertMode && nutrition.health_score?.factors?.length > 0 && (
           <ul className="score-factor-list">
-            {analysisResult.health_score.factors.map((factor) => (
+            {nutrition.health_score.factors.map((factor) => (
               <li key={factor.category}>{factor.explanation}</li>
             ))}
           </ul>
@@ -79,7 +85,7 @@ export default function NutritionReport({
         references, not official health grades.
       </p>
       <div className="result-list nutrient-assessments">
-        {analysisResult.excess_nutrients?.map((nutrient) => (
+        {hasExcessNutrients ? nutrition.excess_nutrients.map((nutrient) => (
           <article className="result-row" key={nutrient.nutrient}>
             <div className="result-main">
               <div>
@@ -95,9 +101,9 @@ export default function NutritionReport({
                 </span>
               </div>
               <span
-                className={`level-badge ${nutrient.needs_review ? "level-unknown" : `level-${nutrient.status.toLowerCase().replaceAll(" ", "-")}`}`}
+                className={`level-badge ${nutrient.needs_review || typeof nutrient.status !== "string" ? "level-unknown" : `level-${nutrient.status.toLowerCase().replaceAll(" ", "-")}`}`}
               >
-                {nutrient.status}
+                {nutrient.status ?? "Status not provided"}
               </span>
             </div>
             {nutrient.equivalent_value != null && (
@@ -108,7 +114,7 @@ export default function NutritionReport({
               </p>
             )}
             <p className="assessment-explanation">{nutrient.explanation}</p>
-            {nutrient.threshold_explanation && (
+            {expertMode && nutrient.threshold_explanation && (
               <p className="percentage-context">
                 <strong>Project threshold:</strong>{" "}
                 {nutrient.threshold_explanation}
@@ -120,15 +126,11 @@ export default function NutritionReport({
               </p>
             )}
           </article>
-        ))}
+        )) : (
+          <p className="muted-copy">Nutrient assessment details were not returned by the backend.</p>
+        )}
       </div>
-
-      <IngredientAnalysisResults
-        evidenceConcerns={
-          analysisResult.ingredient_analysis?.evidence_concerns ?? []
-        }
-      />
-      <p className="disclaimer">{analysisResult.note}</p>
+      {nutrition.note && <p className="disclaimer">{nutrition.note}</p>}
     </div>
   );
 }

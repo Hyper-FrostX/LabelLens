@@ -6,6 +6,45 @@ import pytest
 from app.services import label_ocr
 
 
+def _empty_tsv():
+    return {
+        "text": [],
+        "conf": [],
+        "page_num": [],
+        "block_num": [],
+        "par_num": [],
+        "line_num": [],
+        "left": [],
+        "top": [],
+        "width": [],
+        "height": [],
+    }
+
+
+def _tsv_for_text(ocr_text: str):
+    words = []
+    line_ids = []
+    tops = []
+    for line_index, line in enumerate(ocr_text.splitlines()):
+        for word_index, word in enumerate(line.split()):
+            words.append(word)
+            line_ids.append(line_index + 1)
+            tops.append(30 + line_index * 60)
+    count = len(words)
+    return {
+        "text": words,
+        "conf": ["90"] * count,
+        "page_num": ["1"] * count,
+        "block_num": ["1"] * count,
+        "par_num": ["1"] * count,
+        "line_num": [str(value) for value in line_ids],
+        "left": [str(20 + index * 45) for index in range(count)],
+        "top": [str(value) for value in tops],
+        "width": ["40"] * count,
+        "height": ["20"] * count,
+    }
+
+
 def test_configure_tesseract_prefers_environment_variable(monkeypatch):
     configured_path = r"C:\Custom\Tesseract\tesseract.exe"
     monkeypatch.setenv("TESSERACT_CMD", configured_path)
@@ -116,13 +155,18 @@ def test_extract_text_applies_exif_orientation_before_ocr(monkeypatch):
         "image_to_string",
         lambda candidate, config: observed_images.append(candidate.size) or "",
     )
+    monkeypatch.setattr(
+        label_ocr.pytesseract,
+        "image_to_data",
+        lambda candidate, **kwargs: _empty_tsv(),
+    )
 
     label_ocr.extract_text(image_bytes.getvalue())
 
-    assert observed_images[0] == (100, 300)
+    assert observed_images[0] == (200, 600)
 
 
-def test_extract_text_uses_mocked_tesseract_on_full_layout_and_right_region(
+def test_extract_text_uses_multiple_preprocessed_ocr_passes(
     monkeypatch,
 ):
     image_bytes = BytesIO()
@@ -136,14 +180,10 @@ def test_extract_text_uses_mocked_tesseract_on_full_layout_and_right_region(
 
     def fake_image_to_string(image, config):
         observed_images.append((image.copy(), config))
-        if len(observed_images) == 1:
-            return "Ingredients: oats\nServing Size: 25 g\n"
         return (
-            "Serving Size: 25 g\n"
-            "Saturated Fat 0.8 g 4%\n"
-            "Sodium 249 mg 11%\n"
-            "Total Sugars 3.4 g 3%\n"
-            "Added Sugars 1.5 g 2%\n"
+            "Ingredients: oats\nServing Size: 25 g\n"
+            "Saturated Fat 0.8 g 4%\nSodium 249 mg 11%\n"
+            "Total Sugars 3.4 g 3%\nAdded Sugars 1.5 g 2%\n"
         )
 
     monkeypatch.setattr(
@@ -151,23 +191,24 @@ def test_extract_text_uses_mocked_tesseract_on_full_layout_and_right_region(
         "image_to_string",
         fake_image_to_string,
     )
+    monkeypatch.setattr(
+        label_ocr.pytesseract,
+        "image_to_data",
+        lambda image, **kwargs: _empty_tsv(),
+    )
 
-    result = label_ocr.extract_text(image_bytes.getvalue())
+    result = label_ocr.extract_image_data(image_bytes.getvalue())
 
-    assert len(observed_images) == 3
-    assert observed_images[0][0].size == (1000, 1000)
-    assert observed_images[0][0].mode == "RGB"
+    assert len(observed_images) >= 2
+    assert observed_images[0][0].size == (1200, 1200)
+    assert observed_images[0][0].mode in {"RGB", "L"}
     assert observed_images[0][1] == "--psm 6"
-    assert observed_images[1][0].size == (1200, 1200)
-    assert observed_images[1][0].mode == "L"
-    assert observed_images[1][1] == "--psm 11"
-    assert observed_images[2][0].size == (1200, 2400)
-    assert observed_images[2][0].mode == "L"
-    assert observed_images[2][1] == "--psm 6"
-    assert result.count("Serving Size: 25 g") == 1
-    assert "Saturated Fat 0.8 g 4%" in result
-    assert "Sodium 249 mg 11%" in result
-    assert "Total Sugars 3.4 g 3%" in result
+    assert result["processing"]["ocr_strategies_run"] >= 2
+    assert result["processing"]["original_image_unchanged"] is True
+    assert result["ocr_text"].count("Serving Size: 25 g") == 1
+    assert "Saturated Fat 0.8 g 4%" in result["ocr_text"]
+    assert "Sodium 249 mg 11%" in result["ocr_text"]
+    assert "Total Sugars 3.4 g 3%" in result["ocr_text"]
 
 
 def test_extract_text_with_real_tesseract_when_installed():
@@ -210,3 +251,56 @@ def test_merge_ocr_text_deduplicates_normalized_lines():
     assert result == (
         "Ingredients: oats\nSodium 249 mg\nSugar 3.4 g"
     )
+
+
+def test_extract_image_data_returns_regions_confidence_and_source_coordinates(monkeypatch):
+    image_bytes = BytesIO()
+    Image.new("RGB", (500, 400), color="white").save(image_bytes, format="PNG")
+    ocr_text = (
+        "Product Name: Oat bar\n"
+        "Ingredients: oats, honey\n"
+        "Per 100 g\n"
+        "Total Sugars 4 g"
+    )
+    monkeypatch.setattr(label_ocr, "configure_tesseract", lambda: "tesseract")
+    monkeypatch.setattr(
+        label_ocr.pytesseract,
+        "image_to_string",
+        lambda image, config: ocr_text,
+    )
+    monkeypatch.setattr(
+        label_ocr.pytesseract,
+        "image_to_data",
+        lambda image, **kwargs: _tsv_for_text(ocr_text),
+    )
+
+    result = label_ocr.extract_image_data(image_bytes.getvalue())
+
+    product_field = next(field for field in result["fields"] if field["field_name"] == "product_name")
+    assert result["ocr_text"] == ocr_text
+    assert product_field["extracted_value"] == "Oat bar"
+    assert product_field["ocr_confidence"] == 90
+    assert product_field["confidence_state"] == "HIGH_CONFIDENCE"
+    assert product_field["review_status"] == "NEEDS_MANUAL_REVIEW"
+    assert product_field["source_region"]["source_coordinates"]["coordinate_space"] == (
+        "exif_oriented_original_pixels"
+    )
+    assert {region["region_type"] for region in result["regions"]} >= {
+        "product_name",
+        "ingredients",
+        "nutrition",
+    }
+    assert result["processing"]["original_image_unchanged"] is True
+    assert result["ocr_quality"]["mean_word_confidence"] == 90
+
+
+def test_parse_ocr_data_handles_incomplete_tsv_columns():
+    variant = label_ocr.create_preprocessed_variants(Image.new("RGB", (200, 200)))[0][0]
+    lines, confidences = label_ocr._parse_ocr_data(
+        {"text": ["only"], "conf": ["bad"]},
+        variant=variant,
+        source_size=(200, 200),
+    )
+
+    assert lines == []
+    assert confidences == []

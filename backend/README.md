@@ -6,6 +6,33 @@ From this directory, install the Python dependencies with:
 python -m pip install -r requirements.txt
 ```
 
+## Gemini product Q&A
+
+The backend loads `backend/.env` when the product assistant module starts.
+Copy the example and replace the placeholder locally:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Set `AI_PROVIDER=gemini`, `AI_API_KEY` to your Gemini API key,
+`AI_MODEL=gemini-3.5-flash-lite`, `AI_BASE_URL=` (blank selects Google's
+official Gemini API endpoint), and `AI_REQUEST_TIMEOUT_SECONDS=12`. Explicit
+process environment variables take precedence over `.env`. Restart the backend
+after changing its environment. Do not put AI credentials in frontend
+environment variables; `backend/.env` is ignored by Git.
+
+The current Gemini model list identifies `gemini-3.5-flash-lite` as a stable
+text-capable model. Model access can vary by API key/project. Unsupported
+models, invalid credentials, quota/rate limits, malformed responses, and
+network failures fall back to deterministic Q&A. `POST /analyze/product/ask`
+uses Gemini when configured; `POST /analyze/product/question` remains
+deterministic.
+
+Use a key authorized for the Gemini API. Google's current key guidance rejects
+unrestricted standard keys; apply a Gemini API restriction or use an
+authorized key type.
+
 The label extractor uses Pillow to validate and decode JPEG, PNG, and WebP
 images, and `pytesseract` to call a **separately installed local Tesseract OCR
 executable**. Installing the Python package does not install the Tesseract
