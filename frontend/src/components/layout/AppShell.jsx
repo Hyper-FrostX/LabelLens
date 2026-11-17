@@ -18,15 +18,14 @@ const navigationGroups = [
   {
     label: "Product tools",
     items: [
-      { id: "comparison", label: "Product Comparison", icon: "compare", planned: true },
-      { id: "alternatives", label: "Healthier Alternatives", icon: "alternatives", planned: true },
+      { id: "alternatives", label: "Stored-product Alternatives", icon: "alternatives" },
     ],
   },
   {
     label: "Your space",
     items: [
-      { id: "history", label: "Scan History", icon: "history", planned: true },
-      { id: "profile", label: "My Health Profile", icon: "profile", planned: true },
+      { id: "history", label: "Scan History", icon: "history" },
+      { id: "profile", label: "My Health Profile", icon: "profile" },
     ],
   },
 ];

@@ -213,6 +213,11 @@ def test_profile_is_created_read_and_updated_with_catalog_and_custom_values(
             "health_conditions": ["Diabetes", "hypertension", "DIABETES"],
             "allergens": ["gluten", "Peanuts", "PEANUTS"],
             "custom_allergens": ["Mustard", " mustard ", "Pine nuts"],
+            "dietary_preferences": ["vegetarian", "VEGAN"],
+            "ingredient_exclusions": ["Palm oil", " palm oil ", "Gelatin"],
+            "nutrition_goals": ["lower_sugar", "higher_protein"],
+            "calorie_goal_kcal": 2000,
+            "protein_goal_g": 80,
         },
     )
 
@@ -222,6 +227,11 @@ def test_profile_is_created_read_and_updated_with_catalog_and_custom_values(
     assert updated.json()["health_conditions"] == ["Diabetes", "Hypertension"]
     assert updated.json()["allergens"] == ["Gluten", "Peanuts"]
     assert updated.json()["custom_allergens"] == ["Mustard", "Pine nuts"]
+    assert updated.json()["dietary_preferences"] == ["Vegetarian", "Vegan"]
+    assert updated.json()["ingredient_exclusions"] == ["Palm oil", "Gelatin"]
+    assert updated.json()["nutrition_goals"] == ["lower_sugar", "higher_protein"]
+    assert updated.json()["calorie_goal_kcal"] == 2000
+    assert updated.json()["protein_goal_g"] == 80
 
     with Session(db_engine) as session:
         assert session.scalar(select(func.count()).select_from(HealthCondition)) == 2
@@ -284,6 +294,12 @@ def test_profile_updates_are_scoped_to_authenticated_user(auth_client):
         ("health_conditions", ["Unknown condition"]),
         ("allergens", ["Unknown allergen"]),
         ("custom_allergens", ["gluten"]),
+        ("dietary_preferences", ["Carnivore"]),
+        ("nutrition_goals", ["cure_diabetes"]),
+        ("calorie_goal_kcal", 200),
+        ("calorie_goal_kcal", "NaN"),
+        ("protein_goal_g", 500),
+        ("protein_goal_g", "inf"),
     ],
 )
 def test_invalid_profile_values_do_not_change_saved_profile(

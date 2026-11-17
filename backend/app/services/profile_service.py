@@ -84,6 +84,11 @@ def _build_response(user: User) -> HealthProfileResponse:
         health_conditions=condition_names,
         allergens=allergen_names,
         custom_allergens=custom_allergens,
+        dietary_preferences=profile.dietary_preferences or [],
+        ingredient_exclusions=profile.ingredient_exclusions or [],
+        nutrition_goals=profile.nutrition_goals or [],
+        calorie_goal_kcal=profile.calorie_goal_kcal,
+        protein_goal_g=profile.protein_goal_g,
         updated_at=updated_at,
     )
 
@@ -158,6 +163,11 @@ def update_profile(
                 allergens_by_name[name.casefold()] for name in allergen_names
             ],
             custom_allergens=data.custom_allergens,
+            dietary_preferences=[item.value for item in data.dietary_preferences],
+            ingredient_exclusions=data.ingredient_exclusions,
+            nutrition_goals=[item.value for item in data.nutrition_goals],
+            calorie_goal_kcal=data.calorie_goal_kcal,
+            protein_goal_g=data.protein_goal_g,
         )
         session.commit()
     except IntegrityError as error:

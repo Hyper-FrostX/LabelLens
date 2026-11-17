@@ -86,11 +86,21 @@ class ProfileRepository:
         conditions: Sequence[HealthCondition],
         allergens: Sequence[Allergen],
         custom_allergens: Sequence[str],
+        dietary_preferences: Sequence[str] = (),
+        ingredient_exclusions: Sequence[str] = (),
+        nutrition_goals: Sequence[str] = (),
+        calorie_goal_kcal: float | None = None,
+        protein_goal_g: float | None = None,
     ) -> None:
         if user.health_profile is None:
             user.health_profile = HealthProfile(expertise_level=expertise_level)
         else:
             user.health_profile.expertise_level = expertise_level
+        user.health_profile.dietary_preferences = list(dietary_preferences)
+        user.health_profile.ingredient_exclusions = list(ingredient_exclusions)
+        user.health_profile.nutrition_goals = list(nutrition_goals)
+        user.health_profile.calorie_goal_kcal = calorie_goal_kcal
+        user.health_profile.protein_goal_g = protein_goal_g
 
         user.health_condition_selections = [
             UserHealthCondition(condition=condition) for condition in conditions

@@ -28,6 +28,15 @@ class Product(Base):
     __tablename__ = "products"
     __table_args__ = (
         UniqueConstraint("barcode", name="uq_products_barcode"),
+        UniqueConstraint(
+            "source_name",
+            "source_product_id",
+            name="uq_products_source_identity",
+        ),
+        CheckConstraint(
+            "source_product_id IS NULL OR source_name IS NOT NULL",
+            name="product_source_identity_requires_source_name",
+        ),
         Index("ix_products_product_name", "product_name"),
     )
 
@@ -37,6 +46,17 @@ class Product(Base):
     barcode: Mapped[str | None] = mapped_column(String(32))
     category: Mapped[str | None] = mapped_column(String(120))
     image_url: Mapped[str | None] = mapped_column(String(2048))
+    serving_size_text: Mapped[str | None] = mapped_column(String(120))
+    ingredients_text: Mapped[str | None] = mapped_column(Text)
+    declared_allergens: Mapped[list[str] | None] = mapped_column(JSON)
+    may_contain: Mapped[list[str] | None] = mapped_column(JSON)
+    source_name: Mapped[str | None] = mapped_column(String(240))
+    source_product_id: Mapped[str | None] = mapped_column(String(240))
+    source_url: Mapped[str | None] = mapped_column(String(2048))
+    source_license: Mapped[str | None] = mapped_column(String(240))
+    source_updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=utc_now,

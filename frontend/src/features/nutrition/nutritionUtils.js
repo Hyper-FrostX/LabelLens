@@ -12,6 +12,16 @@ export const nutrientUnitFields = {
   saturated_fat_g: "saturated_fat_unit",
 };
 
+export const additionalNutrientFields = [
+  { name: "energy_kcal", label: "Energy", unit: "kcal" },
+  { name: "energy_kj", label: "Energy", unit: "kJ" },
+  { name: "total_fat_g", label: "Total fat", unit: "g" },
+  { name: "trans_fat_g", label: "Trans fat", unit: "g" },
+  { name: "carbohydrates_g", label: "Carbohydrates", unit: "g" },
+  { name: "protein_g", label: "Protein", unit: "g" },
+  { name: "salt_g", label: "Salt", unit: "g" },
+];
+
 export const nutrientLabels = {
   total_sugar: "Total sugar",
   added_sugar: "Added sugar",
@@ -69,7 +79,45 @@ export function isAcceptedImage(file) {
   );
 }
 
+function prepareDeclarationText(value) {
+  const declared = value?.value ?? value;
+  if (Array.isArray(declared)) return declared.join(", ");
+  return typeof declared === "string" ? declared : "";
+}
+
 export function prepareReviewData(data) {
+  const imageFields = Array.isArray(data.fields) ? data.fields : [];
+  const complianceFields = data.compliance_report?.mandatory_declarations ?? [];
+  const editableFieldNames = new Set([
+    "product_name",
+    "basis",
+    "serving_size_text",
+    "ingredients_text",
+    "allergens",
+    "may_contain",
+    ...nutrientFields.map(({ name }) => `nutrients.${name}`),
+    ...additionalNutrientFields.map(({ name }) => `nutrients.${name}`),
+    "name_of_food",
+    "ingredient_list",
+    "nutrition_information",
+    "allergen_declaration",
+    "vegetarian_declaration",
+    "date_markings",
+  ]);
+  const otherFields = Object.fromEntries(
+    complianceFields
+      .filter((field) => field?.field_name && !editableFieldNames.has(field.field_name))
+      .map((field) => [
+        field.field_name,
+        Array.isArray(field.extracted_value)
+          ? field.extracted_value.join(", ")
+          : typeof field.extracted_value === "object" && field.extracted_value !== null
+            ? JSON.stringify(field.extracted_value)
+            : field.extracted_value == null
+              ? ""
+              : String(field.extracted_value),
+      ])
+  );
   return {
     productName: data.product_name?.value ?? "",
     basis: data.basis ?? "",
@@ -82,10 +130,47 @@ export function prepareReviewData(data) {
           : String(data.nutrients[name].value),
       ])
     ),
+    additionalNutrients: Object.fromEntries(
+      additionalNutrientFields.map(({ name, unit }) => {
+        const extracted = data.nutrients?.[name];
+        return [
+          name,
+          {
+            value:
+              extracted?.value == null ? "" : String(extracted.value),
+            unit: extracted?.unit || unit,
+          },
+        ];
+      })
+    ),
     ingredientsText: data.ingredients_text ?? "",
+    declaredAllergenText: prepareDeclarationText(data.allergens),
+    mayContainText: prepareDeclarationText(data.may_contain),
     reviewRequiredFields: Array.isArray(data.review_required_fields)
       ? data.review_required_fields
       : [],
     ocrText: typeof data.ocr_text === "string" ? data.ocr_text : "",
+    originalValues: {
+      productName: data.product_name?.value ?? "",
+      basis: data.basis ?? "",
+      servingSize: data.serving_size_text ?? "",
+      ingredientsText: data.ingredients_text ?? "",
+      declaredAllergenText: prepareDeclarationText(data.allergens),
+      mayContainText: prepareDeclarationText(data.may_contain),
+      nutrients: Object.fromEntries(
+        [...nutrientFields, ...additionalNutrientFields].map(({ name }) => [
+          name,
+          data.nutrients?.[name]?.value == null
+            ? ""
+            : String(data.nutrients[name].value),
+        ])
+      ),
+    },
+    fields: imageFields,
+    regions: Array.isArray(data.regions) ? data.regions : [],
+    otherFields,
+    originalOtherFields: { ...otherFields },
+    symbolDetection: data.symbol_detection ?? null,
+    symbolReview: "",
   };
 }

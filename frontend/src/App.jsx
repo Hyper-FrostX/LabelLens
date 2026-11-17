@@ -25,6 +25,24 @@ const sections = {
     description:
       "Search the catalog by ingredient, additive code, concern level, or functional purpose.",
   },
+  history: {
+    title: "Scan History",
+    eyebrow: "YOUR SAVED ANALYSES",
+    description:
+      "Sign in to review previously saved label analyses. Scan history is private to your account.",
+  },
+  profile: {
+    title: "My Health Profile",
+    eyebrow: "PERSONALIZED ANALYSIS",
+    description:
+      "Manage your saved allergens, health conditions, and explanation preference. Unsupported conditions remain unevaluated.",
+  },
+  alternatives: {
+    title: "Stored-product Alternatives",
+    eyebrow: "NUTRIENT COMPARISONS",
+    description:
+      "Compare a reviewed label with actual stored products or your own saved scans. Recommendations require comparable label values.",
+  },
 };
 
 const API_BASE_URL = (
@@ -46,7 +64,9 @@ export default function App() {
       {activeSection === "ingredients" && (
         <AdditiveScanner apiBaseUrl={API_BASE_URL} />
       )}
-      {activeSection === "scan" && <NutritionWorkspace />}
+      {["scan", "history", "profile", "alternatives"].includes(activeSection) && (
+        <NutritionWorkspace focusSection={activeSection} />
+      )}
       {activeSection === "knowledge" && (
         <KnowledgeBaseExplorer apiBaseUrl={API_BASE_URL} />
       )}

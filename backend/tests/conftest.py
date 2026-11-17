@@ -32,3 +32,9 @@ def db_session(db_engine: Engine) -> Generator[Session, None, None]:
     with Session(db_engine) as session:
         yield session
         session.rollback()
+
+
+@pytest.fixture(autouse=True)
+def disable_external_ai_provider(monkeypatch):
+    monkeypatch.setenv("AI_PROVIDER", "none")
+    monkeypatch.delenv("AI_API_KEY", raising=False)
