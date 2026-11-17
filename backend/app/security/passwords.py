@@ -4,7 +4,6 @@ from functools import lru_cache
 from pwdlib import PasswordHash
 from pwdlib.exceptions import HashVerificationError, UnknownHashError
 
-
 _password_hash = PasswordHash.recommended()
 
 

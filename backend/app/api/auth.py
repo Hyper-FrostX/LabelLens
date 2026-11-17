@@ -14,7 +14,6 @@ from app.services.auth_service import (
     register_user,
 )
 
-
 router = APIRouter(tags=["authentication"])
 
 

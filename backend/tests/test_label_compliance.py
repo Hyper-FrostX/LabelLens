@@ -6,7 +6,6 @@ from fastapi.testclient import TestClient
 from app.services.label_compliance import analyze_label_compliance
 from main import app
 
-
 client = TestClient(app)
 
 

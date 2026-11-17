@@ -10,7 +10,6 @@ from app.services.label_analysis import analyze_label
 from app.services.label_parser import split_ingredients_text
 from app.services.nutrition import EXCESS_CONTRIBUTION_BANDS
 
-
 _CONDITION_NUTRIENTS = {
     "Diabetes": ("total_sugar", "added_sugar"),
     "Hypertension": ("sodium",),

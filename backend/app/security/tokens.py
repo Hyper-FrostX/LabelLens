@@ -3,7 +3,6 @@ from datetime import datetime, timedelta, timezone
 
 import jwt
 
-
 JWT_ALGORITHM = "HS256"
 DEFAULT_ACCESS_TOKEN_EXPIRE_MINUTES = 30
 

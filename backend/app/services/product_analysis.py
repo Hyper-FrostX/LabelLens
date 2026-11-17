@@ -1,21 +1,20 @@
-from collections.abc import Sequence
 import re
+from collections.abc import Sequence
 from typing import Any
 
 from pydantic import ValidationError
 
 from app.schemas.product_analysis import ProductAnalysisInput
 from app.services.additive_detector import detect_additives
+from app.services.food_scoring import build_food_scores
 from app.services.ingredient_analysis import (
     match_allergen_text,
 )
 from app.services.label_analysis import analyze_label
 from app.services.label_parser import split_ingredients_text
-from app.services.personalized_analysis import analyze_personalized_label
 from app.services.nutrition_intelligence import build_nutrition_intelligence
-from app.services.food_scoring import build_food_scores
+from app.services.personalized_analysis import analyze_personalized_label
 from app.services.personalized_suitability import evaluate_product_suitability
-
 
 _COMPARISON_NUTRIENTS = {
     "energy": ("energy_kcal", "lower"),

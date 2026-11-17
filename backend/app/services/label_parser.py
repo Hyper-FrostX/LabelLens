@@ -1,6 +1,5 @@
 import re
 
-
 _UNIT_PATTERNS = {
     "g": r"g|grams?",
     "mg": r"mg|milligrams?",

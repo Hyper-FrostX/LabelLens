@@ -236,6 +236,54 @@ export default function LabelReviewForm({
           )}
         </div>
 
+        {review.visionCandidates && (
+          <fieldset className="review-other-fields">
+            <legend>Separate Gemini Vision candidates · review only</legend>
+            <p>
+              These image-model suggestions do not replace OCR values or enter
+              the analysis unless you manually confirm them in the fields above.
+            </p>
+            <dl className="product-analysis-data">
+              <div>
+                <dt>Product name</dt>
+                <dd>{formatOriginal(review.visionCandidates.product_name)}</dd>
+              </div>
+              <div>
+                <dt>Nutrition basis and serving size</dt>
+                <dd>
+                  {formatOriginal(review.visionCandidates.basis)}
+                  {" · "}
+                  {formatOriginal(review.visionCandidates.serving_size_text)}
+                </dd>
+              </div>
+              {Object.entries(review.visionCandidates.nutrients ?? {}).map(
+                ([name, value]) => (
+                  <div key={name}>
+                    <dt>{fieldLabel(name)}</dt>
+                    <dd>{formatOriginal(value)}</dd>
+                  </div>
+                )
+              )}
+              <div>
+                <dt>Ingredients</dt>
+                <dd>
+                  {formatOriginal(
+                    review.visionCandidates.ingredients_text ??
+                      review.visionCandidates.ingredients?.join(", ")
+                  )}
+                </dd>
+              </div>
+              {review.visionCandidates.model_used && (
+                <div>
+                  <dt>Model</dt>
+                  <dd>{review.visionCandidates.model_used}</dd>
+                </div>
+              )}
+            </dl>
+            <p role="status">Gemini Vision candidate requires manual review.</p>
+          </fieldset>
+        )}
+
         {Object.keys(review.otherFields ?? {}).length > 0 && (
           <fieldset className="review-other-fields">
             <legend>Other detected label fields</legend>

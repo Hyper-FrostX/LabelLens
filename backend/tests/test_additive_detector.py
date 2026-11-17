@@ -1,10 +1,4 @@
-import pytest
-
-from app.services.additive_detector import (
-    CURATED_ADDITIVES,
-    detect_additives,
-    get_curated_additives,
-)
+from app.services.additive_detector import detect_additives, get_curated_additives
 
 
 def test_curated_additives_exposes_verification_status_and_scoped_facts():

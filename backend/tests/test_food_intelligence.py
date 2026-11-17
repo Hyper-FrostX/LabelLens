@@ -3,7 +3,6 @@ import pytest
 from app.models import HealthProfile, User
 from app.schemas.product_analysis import ProductAnalysisInput
 from app.services.food_scoring import (
-    build_food_scores,
     ingredient_transparency_score,
     nutrition_quality_score,
     protein_quality_score,

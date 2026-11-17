@@ -2,17 +2,19 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
+    JSON,
     CheckConstraint,
     DateTime,
-    Enum as SAEnum,
-    ForeignKey,
     Float,
+    ForeignKey,
     Index,
     Integer,
-    JSON,
     String,
     Text,
     UniqueConstraint,
+)
+from sqlalchemy import (
+    Enum as SAEnum,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -20,6 +22,7 @@ from app.database.base import Base
 from app.models.enums import ExpertiseLevel
 
 if TYPE_CHECKING:
+    from app.models.catalog import AllergenAlias, IngredientAllergen
     from app.models.scan import Scan
 
 

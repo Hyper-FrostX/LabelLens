@@ -1,7 +1,7 @@
 from io import BytesIO
 
-from PIL import Image, ImageDraw, ImageFont
 import pytest
+from PIL import Image, ImageDraw, ImageFont
 
 from app.services import label_ocr
 
@@ -26,7 +26,7 @@ def _tsv_for_text(ocr_text: str):
     line_ids = []
     tops = []
     for line_index, line in enumerate(ocr_text.splitlines()):
-        for word_index, word in enumerate(line.split()):
+        for word in line.split():
             words.append(word)
             line_ids.append(line_index + 1)
             tops.append(30 + line_index * 60)

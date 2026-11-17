@@ -11,7 +11,6 @@ from app.services.profile_service import (
     update_profile,
 )
 
-
 router = APIRouter(tags=["health profile"])
 
 

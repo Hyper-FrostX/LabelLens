@@ -168,6 +168,10 @@ export function prepareReviewData(data) {
     },
     fields: imageFields,
     regions: Array.isArray(data.regions) ? data.regions : [],
+    visionCandidates:
+      data.vision_candidates && typeof data.vision_candidates === "object"
+        ? data.vision_candidates
+        : null,
     otherFields,
     originalOtherFields: { ...otherFields },
     symbolDetection: data.symbol_detection ?? null,

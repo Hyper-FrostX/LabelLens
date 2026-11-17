@@ -1,27 +1,33 @@
 from datetime import date, datetime
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
-    CheckConstraint,
+    JSON,
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
-    Enum as SAEnum,
     ForeignKey,
     Index,
     Integer,
-    JSON,
     Numeric,
     String,
     Text,
     UniqueConstraint,
     text,
 )
+from sqlalchemy import (
+    Enum as SAEnum,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base
 from app.models.enums import NutrientBasis
 from app.models.user import utc_now
+
+if TYPE_CHECKING:
+    from app.models.user import Allergen
 
 
 class Product(Base):

@@ -1,11 +1,12 @@
+from sqlalchemy import select
+
 from app.data import ingredient_knowledge
 from app.data.ingredient_knowledge import get_curated_ingredient_records
+from app.models import AllergenAlias, Ingredient
 from app.repositories.ingredient_knowledge_repository import (
     IngredientKnowledgeRepository,
 )
-from app.models import AllergenAlias, Ingredient
 from app.services.ingredient_analysis import analyze_ingredients
-from sqlalchemy import select
 
 
 def test_source_url_alone_does_not_verify_a_legacy_evidence_claim(monkeypatch):

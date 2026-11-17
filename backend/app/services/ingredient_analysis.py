@@ -1,6 +1,5 @@
 import re
 
-
 INGREDIENT_KNOWLEDGE_BASE = (
     {
         "canonical_name": "Peanut",

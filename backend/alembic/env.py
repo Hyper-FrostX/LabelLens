@@ -1,9 +1,9 @@
 from logging.config import fileConfig
 
+import app.models  # noqa: F401
 from alembic import context
 from app.database.base import Base
 from app.database.config import build_engine, get_database_url
-import app.models  # noqa: F401
 
 config = context.config
 

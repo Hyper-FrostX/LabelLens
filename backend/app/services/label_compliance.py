@@ -1,13 +1,12 @@
-from dataclasses import dataclass
-from copy import deepcopy
-from datetime import date, datetime
 import re
+from copy import deepcopy
+from dataclasses import dataclass
+from datetime import date, datetime
 from typing import Any
 
-from app.services.ingredient_analysis import analyze_ingredients, match_allergen_text
 from app.services.ingredient_allergen_aliases import ALLERGEN_ALIASES
+from app.services.ingredient_analysis import analyze_ingredients, match_allergen_text
 from app.services.label_parser import parse_label_text, split_ingredients_text
-
 
 _OCR_DIGIT_MAP = {
     "O": "0",
@@ -867,7 +866,7 @@ def _date_information(label_text: str, *, as_of_date: date | None = None) -> dic
     by_kind: dict[str, list[dict[str, Any]]] = {}
     for result in results:
         by_kind.setdefault(result["date_type"], []).append(result)
-    for kind, items in by_kind.items():
+    for items in by_kind.values():
         normalized_values = {item["normalized_date"] for item in items if item["normalized_date"]}
         if len(items) > 1 and (len(normalized_values) > 1 or len(normalized_values) == 0):
             for item in items:

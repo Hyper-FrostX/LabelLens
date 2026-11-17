@@ -1,13 +1,13 @@
 
 import math
-from typing import Literal
+import os
+from typing import Any, Literal
 
-from sqlalchemy import select
 from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy.orm import Session
-from sqlalchemy.orm import selectinload
+from sqlalchemy import select
+from sqlalchemy.orm import Session, selectinload
 from starlette.concurrency import run_in_threadpool
 
 from app.api.auth import router as auth_router
@@ -15,40 +15,45 @@ from app.api.personalized_analysis import router as personalized_analysis_router
 from app.api.profile import router as profile_router
 from app.database.config import get_db, get_optional_db
 from app.models import AnalysisReport, Scan, User
-from app.repositories.ingredient_knowledge_repository import IngredientKnowledgeRepository
+from app.models.enums import ScanStatus
+from app.repositories.ingredient_knowledge_repository import (
+    IngredientKnowledgeRepository,
+)
 from app.repositories.product_repository import ProductRepository
 from app.repositories.profile_repository import ProfileRepository
 from app.repositories.scan_repository import ScanRepository
-from app.security.dependencies import get_optional_current_user
-from app.security.dependencies import get_current_user
+from app.schemas.label_compliance import (
+    LabelComplianceInput,
+    LabelComplianceReport,
+)
+from app.schemas.product_analysis import ProductAnalysisInput, ProductQuestionInput
+from app.schemas.product_comparison import ProductComparisonInput
 from app.schemas.scans import (
     AnalysisReportCreate,
     ExtractedLabelCreate,
     ScanCreate,
     ScanRead,
 )
+from app.security.dependencies import get_current_user, get_optional_current_user
 from app.services import label_ocr
 from app.services.additive_detector import (
     ConcernLevel,
     detect_additives,
     get_curated_additives,
 )
-from app.services.label_analysis import analyze_label
+from app.services.gemini_vision import (
+    extract_label_with_vision,
+    generate_fallback_food_suggestions,
+    get_gemini_api_key,
+)
 from app.services.ingredient_analysis import analyze_ingredients
+from app.services.label_analysis import analyze_label
+from app.services.label_compliance import analyze_label_compliance
 from app.services.label_parser import parse_label_text, split_ingredients_text
 from app.services.nutrition import analyze_nutrition
-from app.schemas.product_analysis import ProductAnalysisInput, ProductQuestionInput
-from app.schemas.product_comparison import ProductComparisonInput
-from app.schemas.label_compliance import (
-    LabelComplianceInput,
-    LabelComplianceReport,
-)
 from app.services.product_analysis import analyze_product, answer_product_question
 from app.services.product_assistant import ask_product_question
 from app.services.product_comparison import compare_saved_product_reports
-from app.services.label_compliance import analyze_label_compliance
-from app.models.enums import ScanStatus
-
 
 MAX_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024
 
@@ -97,6 +102,7 @@ class IngredientAnalysisInput(BaseModel):
 
 
 class LabelAnalysisInput(BaseModel):
+    product_name: str | None = Field(default=None, max_length=200)
     sugar_g: float | None = Field(default=None, ge=0)
     added_sugar_g: float | None = Field(default=None, ge=0)
     sodium_mg: float | None = Field(default=None, ge=0)
@@ -108,6 +114,8 @@ class LabelAnalysisInput(BaseModel):
     sodium_unit: str | None = Field(default=None, max_length=20)
     saturated_fat_unit: str | None = Field(default=None, max_length=20)
     ingredients_text: str | None = Field(default=None, max_length=20000)
+    food_suggestions: list[dict[str, Any]] | None = None
+    dietary_advice: str | None = None
 
     @field_validator(
         "sugar_g",
@@ -432,8 +440,8 @@ def read_scan_history_item(
 @app.post(
     "/extract/label",
     description=(
-        "Extract label text and candidate nutrition fields from one local "
-        "image upload. Maximum upload size is 10 MiB."
+        "Extract label text, candidate nutrition fields, and food suggestions "
+        "from one local image upload. Maximum upload size is 10 MiB."
     ),
 )
 async def extract_label_endpoint(
@@ -457,7 +465,25 @@ async def extract_label_endpoint(
         raise HTTPException(status_code=400, detail=str(error)) from error
 
     try:
-        image_data = await run_in_threadpool(label_ocr.extract_image_data, image_bytes)
+        image_data = await run_in_threadpool(
+            label_ocr.extract_image_data,
+            image_bytes,
+        )
+        vision_result = None
+        if (
+            get_gemini_api_key()
+            and os.environ.get("DISABLE_GEMINI_VISION", "").casefold() != "true"
+        ):
+            vision_result = await run_in_threadpool(
+                extract_label_with_vision,
+                image_bytes,
+            )
+    except label_ocr.UnsupportedImageFormatError as error:
+        raise HTTPException(status_code=415, detail=str(error)) from error
+    except label_ocr.ImageTooLargeError as error:
+        raise HTTPException(status_code=413, detail=str(error)) from error
+    except label_ocr.InvalidImageError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
     except label_ocr.OCRServiceError as error:
         raise HTTPException(status_code=503, detail=str(error)) from error
 
@@ -498,4 +524,51 @@ async def extract_label_endpoint(
         ingredients_available=ingredient_target is not None,
         knowledge_records=knowledge_records,
     )
+    if vision_result and vision_result.get("vision_provider") == "gemini":
+        vision_product_name = vision_result.get("product_name")
+        parsed["vision_provider"] = "gemini"
+        parsed["vision_candidates"] = {
+            "product_name": (
+                vision_product_name.get("value")
+                if isinstance(vision_product_name, dict)
+                else vision_product_name
+            ),
+            "basis": vision_result.get("basis"),
+            "serving_size_text": vision_result.get("serving_size_text"),
+            "nutrients": {
+                name: details.get("value")
+                for name, details in (vision_result.get("nutrients") or {}).items()
+                if isinstance(details, dict)
+            },
+            "ingredients_text": vision_result.get("ingredients_text"),
+            "ingredients": vision_result.get("ingredients"),
+            "model_used": vision_result.get("model_used"),
+            "review_required": True,
+        }
+        suggestions = vision_result.get("food_suggestions")
+        if isinstance(suggestions, list) and suggestions:
+            parsed["food_suggestions"] = suggestions
+            parsed["dietary_advice"] = vision_result.get("dietary_advice") or ""
+        else:
+            parsed["food_suggestions"] = []
+            parsed["dietary_advice"] = ""
+    else:
+        parsed["vision_provider"] = (
+            vision_result.get("vision_provider")
+            if vision_result
+            else "rule_based"
+        )
+        nutrient_values = {
+            name: details.get("value")
+            for name, details in (parsed.get("nutrients") or {}).items()
+            if isinstance(details, dict)
+        }
+        suggestions, advice = generate_fallback_food_suggestions(
+            product_name=(parsed.get("product_name") or {}).get("value"),
+            nutrients=nutrient_values,
+            ingredients_text=parsed.get("ingredients_text"),
+        )
+        parsed["food_suggestions"] = suggestions
+        parsed["dietary_advice"] = advice
+        parsed["vision_candidates"] = None
     return parsed

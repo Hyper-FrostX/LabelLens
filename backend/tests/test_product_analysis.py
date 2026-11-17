@@ -5,9 +5,7 @@ from fastapi.testclient import TestClient
 from app.database.config import get_db, get_optional_db
 from app.models import Allergen, User, UserAllergen
 from app.security.tokens import create_access_token
-
 from main import app
-
 
 client = TestClient(app)
 
@@ -251,8 +249,8 @@ def test_product_alternatives_use_only_matching_stored_nutrients():
     result = response.json()
     assert result["alternatives"]["status"] == "NOT_AVAILABLE"
 
-    from app.services.product_analysis import _report_alternatives
     from app.schemas.product_analysis import ProductAnalysisInput
+    from app.services.product_analysis import _report_alternatives
 
     data = ProductAnalysisInput(
         product_name="Current bar",

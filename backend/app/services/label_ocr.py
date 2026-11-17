@@ -1,13 +1,13 @@
-from io import BytesIO
 import os
-from pathlib import Path
 import re
 import shutil
+from io import BytesIO
+from pathlib import Path
 
-from PIL import Image, ImageFilter, ImageOps, UnidentifiedImageError
 import cv2
 import numpy as np
 import pytesseract
+from PIL import Image, ImageFilter, ImageOps, UnidentifiedImageError
 from pytesseract import Output, TesseractError, TesseractNotFoundError
 
 from app.services.image_intelligence import (
@@ -15,7 +15,6 @@ from app.services.image_intelligence import (
     create_preprocessed_variants,
     detect_food_symbols,
 )
-
 
 ALLOWED_IMAGE_FORMATS = {"JPEG", "PNG", "WEBP"}
 MAX_IMAGE_PIXELS = 25_000_000
@@ -332,7 +331,6 @@ def _regions_from_lines(
     transform: np.ndarray,
 ) -> list[dict]:
     processed_width, processed_height = processed_size
-    source_width, source_height = source_size
     matched = {
         region_type: [
             line for line in lines if pattern.search(line["text"])
@@ -767,7 +765,7 @@ def extract_image_data(image_bytes: bytes) -> dict:
         ) from error
     except TesseractError as error:
         raise OCRServiceError("Local Tesseract OCR could not process this image.") from error
-    except (cv2.error, np.linalg.LinAlgError) as error:
+    except np.linalg.LinAlgError as error:
         raise OCRServiceError(
             "Local image preprocessing could not process this label. Try a clearer image."
         ) from error

@@ -5,7 +5,6 @@ from pydantic import ValidationError
 from app.schemas.product_analysis import ProductAnalysisInput
 from app.services.nutrition_intelligence import build_nutrition_intelligence
 
-
 _COMPARISON_FIELDS = (
     "energy",
     "total_fat",

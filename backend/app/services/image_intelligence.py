@@ -1,10 +1,9 @@
-from dataclasses import dataclass
 import math
+from dataclasses import dataclass
 
 import cv2
 import numpy as np
 from PIL import Image
-
 
 MIN_OCR_DIMENSION = 1200
 MAX_OCR_DIMENSION = 3200

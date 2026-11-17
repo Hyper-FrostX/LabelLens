@@ -1,6 +1,6 @@
+import math
 from datetime import datetime
 from enum import Enum
-import math
 from typing import Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator

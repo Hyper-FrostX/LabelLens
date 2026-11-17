@@ -2,7 +2,6 @@ import math
 import re
 from typing import Any
 
-
 NUTRITION_INTELLIGENCE_VERSION = "label-lens-nutrition-intelligence-v1"
 
 _FIELDS = {

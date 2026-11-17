@@ -8,7 +8,6 @@ from app.models import User
 from app.repositories.user_repository import UserRepository
 from app.security.tokens import decode_access_token
 
-
 _bearer_scheme = HTTPBearer(auto_error=False)
 
 

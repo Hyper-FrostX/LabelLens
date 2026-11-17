@@ -1,13 +1,12 @@
 from pathlib import Path
 
-from alembic import command
 from alembic.config import Config
 from sqlalchemy import inspect
 from sqlalchemy.pool import StaticPool
 
-from app.database import Base, build_engine
 import app.models  # noqa: F401
-
+from alembic import command
+from app.database import Base, build_engine
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 

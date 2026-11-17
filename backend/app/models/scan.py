@@ -1,24 +1,30 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
+    JSON,
     CheckConstraint,
     DateTime,
-    Enum as SAEnum,
     ForeignKey,
     Index,
     Integer,
-    JSON,
     Numeric,
     String,
     Text,
+)
+from sqlalchemy import (
+    Enum as SAEnum,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base
 from app.models.enums import ScanStatus
 from app.models.user import utc_now
+
+if TYPE_CHECKING:
+    from app.models.catalog import Product
+    from app.models.user import User
 
 
 class Scan(Base):

@@ -3,12 +3,13 @@ from sqlalchemy.orm import Session
 
 from app.database.config import get_db
 from app.models import User
-from app.repositories.ingredient_knowledge_repository import IngredientKnowledgeRepository
+from app.repositories.ingredient_knowledge_repository import (
+    IngredientKnowledgeRepository,
+)
 from app.repositories.profile_repository import ProfileRepository
 from app.schemas.personalized_analysis import PersonalizedAnalysisInput
 from app.security.dependencies import get_current_user
 from app.services.personalized_analysis import analyze_personalized_label
-
 
 router = APIRouter(tags=["personalized analysis"])
 

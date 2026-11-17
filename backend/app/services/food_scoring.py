@@ -1,6 +1,5 @@
 from typing import Any
 
-
 FOOD_SCORE_VERSION = "label-lens-food-scores-v1"
 NUTRITION_QUALITY_WEIGHTS = {
     "sugar": 40,

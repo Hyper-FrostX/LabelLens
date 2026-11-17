@@ -40,15 +40,23 @@ EXCESS_THRESHOLD_SOURCE = (
     "project contribution bands; not official medical or regulatory limits."
 )
 _SERVING_SIZE_PATTERN = re.compile(
-    r"^\s*\d+(?:\.\d+)?\s*"
+    r"^\s*(?:about\s+|approx\.?\s*)?"
+    r"(?:\d+(?:\.\d+)?|\d+\s*/\s*\d+)\s*"
     r"(?:g|grams?|kg|ml|millilit(?:er|re)s?|l|lit(?:er|re)s?|"
-    r"oz|ounces?|fl\.?\s*oz|cups?|tbsp|tsp|pieces?|packs?)"
-    r"(?:\s*\([^)]*\))?\s*$",
+    r"oz|ounces?|fl\.?\s*oz|cups?|tbsp|tsp|pieces?|packs?|packet(?:s)?|"
+    r"cookies?|bars?|slices?|bottles?|cans?|servings?|portions?|"
+    r"pouches?|biscuits?|scoops?|containers?|items?|units?)"
+    r"(?:\s*\([^)]*\))?\s*$"
+    r"|^\s*(?:about\s+|approx\.?\s*)?\d+(?:\.\d+)?\s*.*?\(\s*\d+(?:\.\d+)?\s*(?:g|grams?|kg|ml|l|oz|fl\.?\s*oz)\s*\)\s*$",
     re.IGNORECASE,
 )
 _CONVERTIBLE_SERVING_SIZE_PATTERN = re.compile(
     r"^\s*(?P<amount>\d+(?:\.\d+)?)\s*"
     r"(?P<unit>g|grams?|kg|ml|millilit(?:er|re)s?|l|lit(?:er|re)s?)\b",
+    re.IGNORECASE,
+)
+_METRIC_IN_PARENS_PATTERN = re.compile(
+    r"\(\s*(?P<amount>\d+(?:\.\d+)?)\s*(?P<unit>g|grams?|kg|ml|millilit(?:er|re)s?|l|lit(?:er|re)s?)\s*\)",
     re.IGNORECASE,
 )
 
@@ -64,6 +72,8 @@ def convert_per_serving_to_100_basis(
         return None
 
     match = _CONVERTIBLE_SERVING_SIZE_PATTERN.match(serving_size_text)
+    if match is None:
+        match = _METRIC_IN_PARENS_PATTERN.search(serving_size_text)
     if match is None:
         return None
 
@@ -175,7 +185,7 @@ def calculate_health_score(
     }
     valid_basis = basis in {"per_serving", "per_100g", "per_100ml"}
     serving_size_match = (
-        re.match(r"^\s*(\d+(?:\.\d+)?)", serving_size_text)
+        re.search(r"(\d+(?:\.\d+)?)", serving_size_text)
         if serving_size_text
         else None
     )
@@ -400,7 +410,7 @@ def analyze_excess_nutrients(
     )
     valid_basis = basis in {"per_serving", "per_100g", "per_100ml"}
     serving_amount_match = (
-        re.match(r"^\s*(\d+(?:\.\d+)?)", serving_size_text)
+        re.search(r"(\d+(?:\.\d+)?)", serving_size_text)
         if serving_size_text
         else None
     )

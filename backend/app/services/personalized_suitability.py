@@ -3,7 +3,6 @@ from typing import Any
 
 from app.services.ingredient_analysis import contains_exact_phrase
 
-
 _GOAL_THRESHOLDS = {
     "lower_sugar": {
         "field": "sugar",
@@ -307,6 +306,11 @@ def evaluate_product_suitability(
                 "gluten-free": ("gluten", "gluten free"),
                 "dairy-free": ("dairy", "dairy free"),
             }.get(normalized, ())
+            escaped_term = (
+                re.escape(terms[1]).replace("\\ ", r"[\s-]+")
+                if terms
+                else ""
+            )
             if terms and any(
                 contains_exact_phrase(term, ingredient)
                 for term in terms[:1]
@@ -319,10 +323,7 @@ def evaluate_product_suitability(
                         "Ingredient text may conflict with the saved dietary preference; the label text may be incomplete.",
                     )
                 )
-            elif terms and re.search(
-                rf"\b{re.escape(terms[1]).replace(r'\ ', r'[\s-]+')}\b",
-                preference_text,
-            ):
+            elif terms and re.search(rf"\b{escaped_term}\b", preference_text):
                 assessments.append(
                     _assessment(
                         f"dietary_preference:{preference}",

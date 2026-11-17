@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Button from "./ui/Button";
 import Icon from "./ui/Icon";
 import Spinner from "./ui/Spinner";
+import { revokeInactiveImagePreviewUrls } from "./imagePreviewUrls.js";
 
 const PRESETS = [
   {
@@ -36,6 +37,91 @@ export default function AdditiveScanner({ apiBaseUrl }) {
   const [scanResult, setScanResult] = useState(null);
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState("");
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [scannedImageName, setScannedImageName] = useState("");
+  const [scannedPreviewUrl, setScannedPreviewUrl] = useState("");
+  const [foodSuggestions, setFoodSuggestions] = useState([]);
+  const [dietaryAdvice, setDietaryAdvice] = useState("");
+  const [visionProvider, setVisionProvider] = useState("rule_based");
+  const fileInputRef = useRef(null);
+  const imagePreviewUrlsRef = useRef(new Set());
+
+  useEffect(() => {
+    revokeInactiveImagePreviewUrls(
+      imagePreviewUrlsRef.current,
+      scannedPreviewUrl,
+      (url) => URL.revokeObjectURL(url),
+    );
+  }, [scannedPreviewUrl]);
+
+  useEffect(
+    () => () => {
+      revokeInactiveImagePreviewUrls(
+        imagePreviewUrlsRef.current,
+        null,
+        (url) => URL.revokeObjectURL(url),
+      );
+    },
+    [],
+  );
+
+  async function handleImageUpload(file) {
+    if (!file) return;
+    setError("");
+    setIsUploadingImage(true);
+    setScannedImageName(file.name);
+    const objectUrl = URL.createObjectURL(file);
+    imagePreviewUrlsRef.current.add(objectUrl);
+    setScannedPreviewUrl(objectUrl);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await fetch(`${apiBaseUrl}/extract/label`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        let msg = `Image analysis failed (HTTP ${response.status})`;
+        try {
+          const errData = await response.json();
+          if (errData?.detail) msg = errData.detail;
+        } catch {
+          // ignore json parse error
+        }
+        throw new Error(msg);
+      }
+
+      const data = await response.json();
+      const text =
+        data.ingredients_text ||
+        (Array.isArray(data.ingredients) ? data.ingredients.join(", ") : "");
+      if (!text.trim()) {
+        throw new Error(
+          "Could not detect any ingredient text in this image. Please enter ingredients manually or try a clearer photo."
+        );
+      }
+
+      setIngredientsText(text);
+      if (
+        Array.isArray(data.food_suggestions) &&
+        data.food_suggestions.length > 0
+      ) {
+        setFoodSuggestions(data.food_suggestions);
+      } else {
+        setFoodSuggestions([]);
+      }
+      setDietaryAdvice(data.dietary_advice || "");
+      setVisionProvider(data.vision_provider || "rule_based");
+
+      await runScan(text);
+    } catch (err) {
+      setError(err.message || "Failed to analyze image.");
+    } finally {
+      setIsUploadingImage(false);
+    }
+  }
 
   async function runScan(textToScan) {
     const text = typeof textToScan === "string" ? textToScan : ingredientsText;
@@ -137,6 +223,58 @@ export default function AdditiveScanner({ apiBaseUrl }) {
           additives from a curated scientific knowledge base, highlights their functional purpose,
           and displays evidence-based concern levels without labeling every additive as harmful.
         </p>
+
+        {/* Gemini Vision Image Upload */}
+        <div className="scanner-image-upload-wrap">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+            className="visually-hidden"
+            onChange={(e) => handleImageUpload(e.target.files?.[0])}
+          />
+          <div className="scanner-image-upload-row">
+            <div className="scanner-upload-prompt">
+              <span aria-hidden="true">📸</span>
+              <span>Scan label or package photo (Gemini Vision)</span>
+            </div>
+            {scannedImageName ? (
+              <div className="scanned-image-preview-badge">
+                {scannedPreviewUrl && (
+                  <img src={scannedPreviewUrl} alt="Scanned label thumbnail" />
+                )}
+                <span>{scannedImageName}</span>
+                <button
+                  type="button"
+                  className="text-button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploadingImage}
+                >
+                  Change
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="scanner-upload-btn"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploadingImage}
+              >
+                {isUploadingImage ? (
+                  <>
+                    <span className="spinner" aria-hidden="true" />
+                    Analyzing image…
+                  </>
+                ) : (
+                  <>
+                    Upload package photo
+                    <span aria-hidden="true">↑</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+        </div>
 
         {/* Quick Presets */}
         <div className="presets-container">
@@ -358,6 +496,78 @@ export default function AdditiveScanner({ apiBaseUrl }) {
                     <span className="ingredient-tag" key={index}>
                       {item}
                     </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Food Suggestions from Gemini Vision */}
+            {foodSuggestions?.length > 0 && (
+              <div className="food-suggestions-section" style={{ marginTop: "24px", padding: "20px" }}>
+                <div className="food-suggestions-header">
+                  <div className="food-suggestions-title-group">
+                    <span className="suggestion-badge-icon" aria-hidden="true">
+                      🌱
+                    </span>
+                    <div>
+                      <p className="step-label">SMART NUTRITION CHOICES</p>
+                      <h4
+                        style={{
+                          margin: 0,
+                          fontSize: "1.15rem",
+                          fontWeight: 700,
+                          color: "#1a3826",
+                        }}
+                      >
+                        Healthy Food Suggestions &amp; Alternatives
+                      </h4>
+                    </div>
+                  </div>
+                  <span className="ai-vision-pill">
+                    {visionProvider === "gemini"
+                      ? "Powered by Gemini Vision"
+                      : "LabelLens rule-based suggestions"}
+                  </span>
+                </div>
+
+                {dietaryAdvice && (
+                  <div className="dietary-advice-card">
+                    <span className="advice-icon" aria-hidden="true">
+                      💡
+                    </span>
+                    <div className="advice-content">
+                      <strong>Personalized Nutrition Advice</strong>
+                      <p>{dietaryAdvice}</p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="food-suggestions-grid">
+                  {foodSuggestions.map((item, index) => (
+                    <article
+                      className="food-suggestion-card"
+                      key={`${item.name}-${index}`}
+                    >
+                      <div className="suggestion-card-top">
+                        <span className="suggestion-category-tag">
+                          {item.category}
+                        </span>
+                        <span className="suggestion-icon" aria-hidden="true">
+                          🥗
+                        </span>
+                      </div>
+                      <h5 className="suggestion-food-name">{item.name}</h5>
+                      <p className="suggestion-reason">{item.reason}</p>
+                      {item.highlights?.length > 0 && (
+                        <div className="suggestion-highlights">
+                          {item.highlights.map((h, i) => (
+                            <span className="highlight-pill" key={i}>
+                              ✓ {h}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </article>
                   ))}
                 </div>
               </div>

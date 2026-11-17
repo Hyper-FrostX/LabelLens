@@ -1,5 +1,5 @@
-from collections.abc import Generator
 import sys
+from collections.abc import Generator
 from pathlib import Path
 
 import pytest
@@ -7,12 +7,11 @@ from sqlalchemy import Engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND_DIR))
 
-from app.database import Base, build_engine
 import app.models  # noqa: F401
+from app.database import Base, build_engine
 
 
 @pytest.fixture
@@ -38,3 +37,4 @@ def db_session(db_engine: Engine) -> Generator[Session, None, None]:
 def disable_external_ai_provider(monkeypatch):
     monkeypatch.setenv("AI_PROVIDER", "none")
     monkeypatch.delenv("AI_API_KEY", raising=False)
+    monkeypatch.setenv("DISABLE_GEMINI_VISION", "true")

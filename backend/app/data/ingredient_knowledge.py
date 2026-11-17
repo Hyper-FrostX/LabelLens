@@ -1,10 +1,9 @@
+import re
 from copy import deepcopy
 from datetime import date
-import re
 
 from app.services.ingredient_allergen_aliases import ALLERGEN_ALIASES
 from app.services.ingredient_analysis import INGREDIENT_KNOWLEDGE_BASE
-
 
 _CODEX_GSFA_URL = "https://www.fao.org/gsfaonline/additives/index.html?lang=en"
 _REVIEW_DATE = date(2026, 11, 15)

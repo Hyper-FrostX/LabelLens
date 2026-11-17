@@ -13,7 +13,6 @@ from app.schemas.profile import (
     HealthProfileUpdate,
 )
 
-
 _ALLERGEN_CATEGORIES = {
     choice.value.casefold(): "food" for choice in AllergenChoice
 }

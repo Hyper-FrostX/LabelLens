@@ -8,7 +8,6 @@ from PIL import Image
 from app.services import label_ocr
 from main import MAX_IMAGE_UPLOAD_BYTES, app
 
-
 client = TestClient(app)
 
 
@@ -174,6 +173,54 @@ def test_label_extraction_endpoint_returns_mocked_ocr_results(monkeypatch):
     assert result["processing"]["original_image_unchanged"] is True
     assert result["symbol_detection"]["image_inspected"] is True
     assert "sugar_g" in result["review_required_fields"]
+
+
+def test_label_extraction_keeps_ocr_evidence_and_attaches_vision_candidates(
+    monkeypatch,
+):
+    ocr_text = "Product Name: OCR Name\nIngredients: oats, honey"
+    monkeypatch.setattr(
+        label_ocr,
+        "extract_image_data",
+        lambda _: _mock_image_data(ocr_text),
+    )
+    monkeypatch.setenv("AI_PROVIDER", "gemini")
+    monkeypatch.setenv("AI_API_KEY", "fake-test-key")
+    monkeypatch.setenv("DISABLE_GEMINI_VISION", "false")
+    monkeypatch.setattr(
+        "main.extract_label_with_vision",
+        lambda _: {
+            "vision_provider": "gemini",
+            "product_name": {
+                "value": "Vision Candidate",
+                "confidence": None,
+                "needs_review": True,
+            },
+            "basis": "per_100g",
+            "serving_size_text": "100 g",
+            "nutrients": {"sugar_g": {"value": 20, "confidence": None}},
+            "ingredients_text": "oats, honey",
+            "ingredients": ["oats", "honey"],
+            "food_suggestions": [{"name": "Fresh fruit"}],
+            "dietary_advice": "Compare the ingredient list.",
+            "model_used": "test-model",
+        },
+    )
+
+    response = client.post(
+        "/extract/label",
+        files={"file": ("label.png", _png_image_bytes(), "image/png")},
+    )
+
+    assert response.status_code == 200
+    result = response.json()
+    assert result["product_name"]["value"] == "OCR Name"
+    assert result["ocr_text"] == ocr_text
+    assert result["vision_provider"] == "gemini"
+    assert result["vision_candidates"]["product_name"] == "Vision Candidate"
+    assert result["vision_candidates"]["nutrients"]["sugar_g"] == 20
+    assert result["vision_candidates"]["review_required"] is True
+    assert result["food_suggestions"] == [{"name": "Fresh fruit"}]
 
 
 def test_label_extraction_endpoint_requires_a_file():

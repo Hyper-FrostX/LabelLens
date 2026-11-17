@@ -4,7 +4,6 @@ from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
 
-
 _NUTRIENT_UNITS = {
     "sugar_g": "sugar_unit",
     "added_sugar_g": "added_sugar_unit",
@@ -35,6 +34,7 @@ def _as_declaration_list(value: Any) -> Any:
 
 
 class PersonalizedAnalysisInput(BaseModel):
+    product_name: str | None = Field(default=None, max_length=200)
     sugar_g: float | None = Field(default=None, ge=0)
     added_sugar_g: float | None = Field(default=None, ge=0)
     sodium_mg: float | None = Field(default=None, ge=0)
@@ -51,6 +51,8 @@ class PersonalizedAnalysisInput(BaseModel):
     may_contain: list[str] | None = Field(default=None, max_length=100)
     nutrients: dict[str, Any] | None = None
     extracted_fields: dict[str, Any] | None = None
+    food_suggestions: list[dict[str, Any]] | None = None
+    dietary_advice: str | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -64,7 +66,13 @@ class PersonalizedAnalysisInput(BaseModel):
             for key, field_value in extracted_fields.items():
                 data.setdefault(key, field_value)
 
-        for key in ("basis", "serving_size_text", "ingredients_text", "ingredients"):
+        for key in (
+            "product_name",
+            "basis",
+            "serving_size_text",
+            "ingredients_text",
+            "ingredients",
+        ):
             if key in data:
                 data[key] = _field_value(data[key])
 
