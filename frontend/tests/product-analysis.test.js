@@ -12,11 +12,6 @@ import {
   toLegacyLabelPayload,
 } from "../src/features/nutrition/productAnalysisUtils.js";
 import { prepareReviewData } from "../src/features/nutrition/nutritionUtils.js";
-import {
-  buildProductComparisonRequest,
-  formatComparisonBasis,
-  getComparisonRows,
-} from "../src/features/nutrition/comparisonUtils.js";
 
 const nutrients = {
   sugar_g: "4.5",
@@ -236,46 +231,6 @@ test("sends a selected alternatives goal without changing the product-analysis f
 
   assert.equal(payload.recommendation_goal, "higher_protein");
   assert.equal(payload.explanation_level, "detailed");
-});
-
-test("validates saved comparison selections and displays only shared server-comparable nutrients", () => {
-  assert.deepEqual(buildProductComparisonRequest([4, 9]), {
-    scan_ids: [4, 9],
-    recommendation_goal: "balanced",
-  });
-  assert.deepEqual(
-    buildProductComparisonRequest([4, 9], "higher_protein"),
-    { scan_ids: [4, 9], recommendation_goal: "higher_protein" }
-  );
-  assert.throws(
-    () => buildProductComparisonRequest([4, 9], "universal_winner"),
-    /supported product comparison goal/
-  );
-  assert.throws(() => buildProductComparisonRequest([4, 4]), /unique saved products/);
-  assert.throws(() => buildProductComparisonRequest([4]), /2–5/);
-  assert.equal(formatComparisonBasis("per_100g"), "per 100g");
-  assert.deepEqual(
-    getComparisonRows({
-      status: "COMPARABLE",
-      products: [{ scan_id: 4 }, { scan_id: 9 }],
-      nutrient_comparisons: {
-        sugar: {
-          unit: "g",
-          values: [{ scan_id: 4, value: 4 }, { scan_id: 9, value: 2 }],
-        },
-      },
-    }),
-    [{
-      key: "sugar",
-      unit: "g",
-      label: "Total sugar",
-      values: [{ scan_id: 4, value: 4 }, { scan_id: 9, value: 2 }],
-    }]
-  );
-  assert.deepEqual(
-    getComparisonRows({ status: "INSUFFICIENT_DATA", nutrient_comparisons: {} }),
-    []
-  );
 });
 
 test("builds a complete correction record from the explicitly reviewed form values", () => {

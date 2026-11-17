@@ -7,6 +7,8 @@ import NutritionReport from "./NutritionReport";
 import AccountPanel from "./AccountPanel";
 import ProductAnalysisSections from "./ProductAnalysisSections";
 import ProductQuestionAnswer from "./ProductQuestionAnswer";
+import { buildProductQuestionContext } from "./productQuestionContext";
+import { revokeInactiveImagePreviewUrls } from "../../components/imagePreviewUrls.js";
 import {
   getApiErrorMessage,
   isAcceptedImage,
@@ -39,7 +41,13 @@ const EMPTY_ADDITIONAL_NUTRIENTS = Object.fromEntries(
   ])
 );
 
-export default function NutritionWorkspace({ focusSection = "scan" }) {
+export default function NutritionWorkspace({
+  focusSection = "scan",
+  accessToken = "",
+  sessionExpired = false,
+  onAuthChange = () => {},
+  onAuthExpired = () => {},
+}) {
   const [selectedImage, setSelectedImage] = useState(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [extraction, setExtraction] = useState(null);
@@ -64,18 +72,44 @@ export default function NutritionWorkspace({ focusSection = "scan" }) {
   const [explanationLevel, setExplanationLevel] = useState("beginner");
   const [analysisContext, setAnalysisContext] = useState(null);
   const [usedLegacyAnalysis, setUsedLegacyAnalysis] = useState(false);
-  const [accessToken, setAccessToken] = useState("");
   const [saveToHistory, setSaveToHistory] = useState(false);
   const [historyVersion, setHistoryVersion] = useState(0);
 
   const fileInputRef = useRef(null);
-  const previewUrlRef = useRef("");
+  const imagePreviewUrlsRef = useRef(new Set());
   const resultSectionRef = useRef(null);
   const analysisRequestIdRef = useRef(0);
+  const previousAccessTokenRef = useRef(accessToken);
 
   useEffect(() => {
+    if (previousAccessTokenRef.current && !accessToken) {
+      analysisRequestIdRef.current += 1;
+      setAnalysisResult(null);
+      setAnalysisContext(null);
+      setConfirmedLabel(null);
+      setSaveToHistory(false);
+      setIsAnalyzing(false);
+      setAnalysisError("");
+    }
+    previousAccessTokenRef.current = accessToken;
+  }, [accessToken]);
+
+  useEffect(() => {
+    revokeInactiveImagePreviewUrls(
+      imagePreviewUrlsRef.current,
+      previewUrl,
+      (url) => URL.revokeObjectURL(url),
+    );
+  }, [previewUrl]);
+
+  useEffect(() => {
+    const ownedUrls = imagePreviewUrlsRef.current;
     return () => {
-      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+      revokeInactiveImagePreviewUrls(
+        ownedUrls,
+        null,
+        (url) => URL.revokeObjectURL(url),
+      );
     };
   }, []);
 
@@ -90,14 +124,10 @@ export default function NutritionWorkspace({ focusSection = "scan" }) {
   }, [analysisResult]);
 
   function setImagePreview(file) {
-    if (previewUrlRef.current) {
-      URL.revokeObjectURL(previewUrlRef.current);
-      previewUrlRef.current = "";
-    }
     setSelectedImage(file);
     if (file) {
       const imageUrl = URL.createObjectURL(file);
-      previewUrlRef.current = imageUrl;
+      imagePreviewUrlsRef.current.add(imageUrl);
       setPreviewUrl(imageUrl);
     } else {
       setPreviewUrl("");
@@ -348,6 +378,9 @@ export default function NutritionWorkspace({ focusSection = "scan" }) {
         },
         body: JSON.stringify(payload),
       });
+      if (response.status === 401 && accessToken) {
+        onAuthExpired();
+      }
       let responseData = null;
       try {
         responseData = await response.json();
@@ -365,7 +398,9 @@ export default function NutritionWorkspace({ focusSection = "scan" }) {
         if (analysisRequestIdRef.current === requestId) {
           const normalizedResult = normalizeProductAnalysisResponse(responseData);
           setAnalysisResult(normalizedResult);
-          setAnalysisContext({ ...payload, ...normalizedResult });
+          setAnalysisContext(
+            buildProductQuestionContext(payload, normalizedResult)
+          );
           if (normalizedResult.saved_scan_id) {
             setHistoryVersion((current) => current + 1);
           }
@@ -401,7 +436,7 @@ export default function NutritionWorkspace({ focusSection = "scan" }) {
             limitations: null,
           });
           setAnalysisResult(legacyResult);
-          setAnalysisContext({ ...payload, ...legacyResult });
+          setAnalysisContext(buildProductQuestionContext(payload, legacyResult));
           setUsedLegacyAnalysis(true);
         }
       } else {
@@ -475,9 +510,12 @@ export default function NutritionWorkspace({ focusSection = "scan" }) {
   return (
     <>
       <AccountPanel
+        key={accessToken ? "authenticated" : "guest"}
         apiBaseUrl={API_BASE_URL}
         accessToken={accessToken}
-        onAuthChange={setAccessToken}
+        onAuthChange={onAuthChange}
+        onAuthExpired={onAuthExpired}
+        sessionExpired={sessionExpired}
         historyVersion={historyVersion}
         onExpertiseChange={setExplanationLevel}
         defaultOpen={focusSection === "history" || focusSection === "profile"}
@@ -602,6 +640,7 @@ export default function NutritionWorkspace({ focusSection = "scan" }) {
               productContext={analysisContext}
               explanationLevel={explanationLevel}
               accessToken={accessToken}
+              onAuthExpired={onAuthExpired}
             />
           )}
         </>

@@ -400,11 +400,17 @@
   }
 }
 
-.form-footnote {
+.form-footnote,
+.image-processing-disclosure {
   margin: 12px 0 0;
   color: #89948c;
   font-size: 11px;
+  line-height: 1.5;
   text-align: center;
+}
+
+.image-processing-disclosure {
+  color: #52665a;
 }
 
 /* Results Card */
@@ -669,6 +675,55 @@
   border-color: #639879;
   box-shadow: 0 0 0 3px rgba(66, 131, 93, 0.14);
   outline: none;
+}
+
+.ingredient-review-source {
+  margin: 14px 0;
+  padding: 14px;
+  border: 1px solid #dfe7e0;
+  border-radius: 12px;
+  background: #f7faf7;
+}
+
+.ingredient-review-source h3 {
+  margin: 0 0 4px;
+  color: #223c2f;
+  font-size: 0.95rem;
+}
+
+.ingredient-review-source p,
+.ingredient-review-status,
+.ingredient-analysis-source,
+.suggestion-qualification {
+  color: #617267;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ingredient-review-source p {
+  margin: 0 0 8px;
+}
+
+.ingredient-review-source pre {
+  max-height: 180px;
+  margin: 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: #334b3c;
+  font: inherit;
+}
+
+.ingredient-review-status {
+  margin: 8px 0 12px;
+}
+
+.ingredient-analysis-source {
+  margin: 0 0 12px;
+}
+
+.suggestion-qualification {
+  margin: 10px 0;
 }
 
 .scanner-actions {
@@ -2835,80 +2890,6 @@
   color: #223c2f;
   cursor: pointer;
   font-weight: 700;
-}
-
-.saved-scan-selection {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.saved-product-comparison {
-  margin-top: 16px;
-  padding-top: 14px;
-  border-top: 1px solid #e8eee8;
-}
-
-.saved-product-comparison h3 {
-  margin: 0 0 6px;
-  color: #223c2f;
-  font-size: 15px;
-}
-
-.saved-product-comparison > p,
-.saved-comparison-results {
-  color: #53665a;
-  font-size: 12px;
-  line-height: 1.55;
-}
-
-.comparison-table-scroll {
-  max-width: 100%;
-  overflow-x: auto;
-}
-
-.saved-comparison-results table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12px;
-  text-align: left;
-}
-
-.saved-comparison-results caption {
-  padding: 7px 0;
-  color: #334b3c;
-  font-weight: 700;
-  text-align: left;
-}
-
-.saved-comparison-results th,
-.saved-comparison-results td {
-  min-width: 100px;
-  padding: 8px;
-  border: 1px solid #e1e9e2;
-}
-
-.saved-comparison-results th {
-  color: #334b3c;
-  background: #f5f8f5;
-}
-
-.saved-comparison-product-details {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
-  gap: 10px;
-  margin-top: 12px;
-}
-
-.saved-comparison-product-details article {
-  padding: 12px;
-  border: 1px solid #e1e9e2;
-  border-radius: 10px;
-}
-
-.saved-comparison-product-details h4 {
-  margin: 0 0 6px;
-  color: #334b3c;
 }
 
 .account-content {

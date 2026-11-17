@@ -6,10 +6,22 @@ From this directory, install the Python dependencies with:
 python -m pip install -r requirements.txt
 ```
 
+For a fresh local setup, copy `.env.example` only when `.env` does not already
+exist, then configure the database and JWT settings:
+
+```powershell
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+python -m alembic upgrade head
+python -m uvicorn main:app --reload --port 8000
+```
+
+Keep local values in `.env`; do not overwrite an existing local environment
+file. The checked-in example contains placeholders only.
+
 ## Gemini product Q&A
 
-The backend loads `backend/.env` when the product assistant module starts.
-Copy the example and replace the placeholder locally:
+The backend loads `.env` relative to the backend project directory when its
+environment-aware services initialize. Set the example's placeholders locally:
 
 ```powershell
 Copy-Item .env.example .env
@@ -22,12 +34,52 @@ process environment variables take precedence over `.env`. Restart the backend
 after changing its environment. Do not put AI credentials in frontend
 environment variables; `backend/.env` is ignored by Git.
 
-The current Gemini model list identifies `gemini-3.5-flash-lite` as a stable
-text-capable model. Model access can vary by API key/project. Unsupported
-models, invalid credentials, quota/rate limits, malformed responses, and
-network failures fall back to deterministic Q&A. `POST /analyze/product/ask`
-uses Gemini when configured; `POST /analyze/product/question` remains
+The `.env.example` also lists the server-side settings for persistence,
+authentication, OCR, browser origins, and API request limits. Replace every
+placeholder locally; never commit `.env` or put credentials in the example
+file. Set `DATABASE_URL` to a PostgreSQL SQLAlchemy URL for persistence and
+migrations (SQLite URLs are supported for isolated tests). Set
+`JWT_SECRET_KEY` to a securely generated secret of at least 32 bytes.
+`TESSERACT_CMD` is optional and points to the local Tesseract executable when
+it is not on `PATH`.
+
+Model availability can vary by API key and Google project. Unsupported models,
+invalid credentials, quota/rate limits, malformed responses, and network
+failures fall back to deterministic Q&A. `POST /analyze/product/ask` uses a
+configured provider when available; `POST /analyze/product/question` remains
 deterministic.
+
+## API request limits and CORS
+
+`POST /extract/label` and `POST /analyze/product/ask` have independent,
+configurable per-client limits. The defaults are 10 label extractions per 60
+seconds and 20 product questions per 60 seconds. Configure them with
+`EXTRACT_LABEL_RATE_LIMIT_REQUESTS`,
+`EXTRACT_LABEL_RATE_LIMIT_WINDOW_SECONDS`,
+`PRODUCT_ASK_RATE_LIMIT_REQUESTS`, and
+`PRODUCT_ASK_RATE_LIMIT_WINDOW_SECONDS`. A limit response uses HTTP 429 and a
+`Retry-After` header. The limiter keys requests by the client address provided
+to the ASGI application and operation; it does not log client addresses or
+credentials.
+
+These counters are process-local and held in memory. They are not shared across
+multiple workers, replicas, or restarts, so they are not a distributed abuse
+control. Use a shared gateway or distributed limiter for multi-worker or
+production deployments requiring consistent enforcement. When running behind
+a reverse proxy, configure trusted proxy handling at the server/infrastructure
+layer; the application does not trust arbitrary forwarded-IP headers.
+
+CORS defaults to the four local frontend origins in `.env.example`, with
+credentials enabled. Set `CORS_ALLOWED_ORIGINS` to a comma-separated list of
+exact origins for deployment and `CORS_ALLOW_CREDENTIALS` to `true` or
+`false`. Wildcard origin `*` is rejected when credentials are enabled. Keep
+the allowlist limited to origins you control.
+
+The extractor continues to validate the decoded image format and dimensions
+and limits uploaded files to 10 MiB. OCR uses the local Tesseract executable.
+When Gemini Vision is enabled and configured, the image may also be sent to
+Google's Gemini API for candidate extraction; keep that behavior and its
+credentials server-side.
 
 Use a key authorized for the Gemini API. Google's current key guidance rejects
 unrestricted standard keys; apply a Gemini API restriction or use an
@@ -81,18 +133,18 @@ python -m alembic upgrade head
 
 Use `python -m alembic downgrade -1` to reverse the latest migration, and
 `python -m alembic revision --autogenerate -m "describe schema change"` to
-create a migration after changing models. Review generated migrations before
-applying them. The initial migration creates the user/profile/health,
-product/ingredient/nutrient, scan/extracted-label, and analysis-report tables.
+create a migration after changing models. Review generated migrations before applying them. The migration history creates
+the user/profile/health, product/ingredient/nutrient, scan/extracted-label,
+and analysis-report tables.
 
 SQLAlchemy models are in `app.models`, connection and session configuration in
 `app.database`, Pydantic persistence schemas in `app.schemas`, and user/scan
 queries in `app.repositories`. `get_db` provides a request-scoped session
 dependency; repositories flush changes but leave transaction commit/rollback
-to their caller. The existing API does not depend on the database layer yet:
-`POST /extract/label` remains stateless and does not save anonymous scans.
-`ScanRepository.create_for_user` requires a user id for future authenticated
-scan persistence.
+to their caller. Authentication, profile operations, authenticated catalog
+lookup, product alternatives, and saved scan history use the database when
+configured. Label extraction itself remains stateless; reviewed product
+analysis is saved only when requested by an authenticated user.
 
 ## Authentication and health profiles
 
@@ -124,8 +176,13 @@ Authentication endpoints are `POST /auth/register`, `POST /auth/login`, and
 and only read or modify the authenticated user's profile. Supported health
 conditions and standard allergens are validated against the API schema;
 additional allergen names are stored as user-specific custom selections.
-Health-profile values are not currently passed into the nutrition or
-ingredient-analysis engines.
+`POST /analyze/product` uses the authenticated user's supported profile rules
+for suitability and alternatives; general nutrition scoring and ingredient
+matching remain separate from personal suitability.
+
+The browser keeps JWTs in memory rather than persistent browser storage. A
+reload requires signing in again. Client logout clears local state, but an
+already issued stateless JWT remains valid until its configured expiry.
 
 ## Personalized label analysis
 
@@ -224,12 +281,20 @@ verification state, a review-required count, and neutral summaries. When
 curated records. Authenticated personalized analysis loads the persisted
 catalog and reuses the same matcher.
 
-### Endpoints
+### Main endpoints
 - `GET /health`
-- `GET /additives/knowledge-base` (supports `concern_level` and `query` params)
-- `POST /analyze/ingredients` (accepts `ingredients` list or `ingredients_text`)
-- `POST /analyze/nutrition`
-- `POST /extract/label` (includes `additive_analysis` on parsed ingredients)
+- `GET /additives/knowledge-base`
+- `POST /analyze/ingredients`
+- `POST /analyze/nutrition` and `POST /analyze/label`
+- `POST /extract/label`
+- `POST /analyze/product` and `POST /analyze/label-compliance`
+- `POST /analyze/personalized`
+- `POST /analyze/product/ask`
+- `GET /scans`, `GET /scans/{scan_id}`
+
+Saved-scan Product Comparison and its `/scans/compare` endpoint are not part of
+the active application scope. Stored-product healthier alternatives remain
+available as part of product analysis when suitable stored data exists.
 
 ## Label analysis
 

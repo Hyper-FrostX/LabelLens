@@ -9,6 +9,7 @@ export default function ProductQuestionAnswer({
   productContext,
   explanationLevel,
   accessToken,
+  onAuthExpired,
 }) {
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState(null);
@@ -31,6 +32,7 @@ export default function ProductQuestionAnswer({
         },
         explanationLevel,
         accessToken,
+        onAuthExpired,
         onLoadingChange: setIsAsking,
       });
       setAnswer(responseData);

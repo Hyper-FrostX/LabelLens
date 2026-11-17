@@ -428,6 +428,11 @@ def test_analyze_nutrition_preserves_missing_values():
             "Percentages represent contribution to the project's daily "
             "reference from 100 g of the product.",
         ),
+        (
+            "per_100ml",
+            "Percentages represent contribution to the project's daily "
+            "reference from 100 ml of the product.",
+        ),
     ],
 )
 def test_analyze_nutrition_describes_percentage_basis(basis, expected_context):

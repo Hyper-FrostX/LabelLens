@@ -4,20 +4,21 @@ import base64
 import json
 import logging
 import os
+import re
 from io import BytesIO
 from pathlib import Path
 from typing import Any
 
 import httpx
-from dotenv import load_dotenv
 from PIL import Image, ImageOps
 
+from app.config.environment import load_backend_environment_file
 from app.services import label_ocr
 from app.services.additive_detector import detect_additives
 from app.services.label_parser import parse_label_text
 
 _BACKEND_ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
-load_dotenv(dotenv_path=_BACKEND_ENV_FILE, override=False, encoding="utf-8-sig")
+load_backend_environment_file(_BACKEND_ENV_FILE)
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,12 @@ DEFAULT_MODELS = [
 ]
 
 MAX_PROCESSED_DIMENSION = 2048
+_UNSUPPORTED_SUGGESTION_CLAIM = re.compile(
+    r"\d|%|\b(?:zero|no|low|lower|less|fewer|reduced|high|rich|free|without|"
+    r"unsweetened|unprocessed|clean|"
+    r"healthier|healthiest|healthy|heart[- ]healthy|boosts?|supports?)\b",
+    re.IGNORECASE,
+)
 
 
 def get_gemini_api_key() -> str:
@@ -99,95 +106,83 @@ def _coerce_float(val: Any) -> float | None:
         return None
 
 
+def _nutrient_value(nutrients: dict[str, Any], name: str) -> float | None:
+    value = nutrients.get(name)
+    if isinstance(value, dict):
+        value = value.get("value")
+    return _coerce_float(value)
+
+
+def _normalize_food_suggestions(suggestions: Any) -> list[dict[str, Any]]:
+    """Keep food ideas, but discard unverified nutrition and health claims."""
+    if not isinstance(suggestions, list):
+        return []
+
+    normalized = []
+    for suggestion in suggestions:
+        if not isinstance(suggestion, dict):
+            continue
+        name = suggestion.get("name")
+        if not isinstance(name, str) or not name.strip():
+            continue
+        name = name.strip()
+        if _UNSUPPORTED_SUGGESTION_CLAIM.search(name):
+            continue
+        normalized.append(
+            {
+                "name": name,
+                "category": "General food idea",
+                "reason": (
+                    "A general food idea, not a measured comparison with the "
+                    "scanned product. Nutrition depends on ingredients and portions."
+                ),
+                "highlights": ["General idea"],
+            }
+        )
+    return normalized
+
+
 def generate_fallback_food_suggestions(
     product_name: str | None,
     nutrients: dict[str, Any] | None,
     ingredients_text: str | None,
 ) -> tuple[list[dict[str, Any]], str]:
-    """Generate intelligent rule-based food suggestions if vision AI suggestions are absent."""
+    """Generate deterministic, general food ideas without unsupported nutrient claims."""
     nutrients = nutrients or {}
-    sugar = _coerce_float(
-        nutrients.get("sugar_g")
-        or (nutrients.get("sugar_g", {}).get("value") if isinstance(nutrients.get("sugar_g"), dict) else None)
+    suggestions = [
+        {
+            "name": "Whole-Grain Rolled Oats with Crushed Walnuts & Berries",
+            "category": "General food idea",
+            "reason": "A general meal idea with oats, walnuts, and berries.",
+            "highlights": ["Oats", "Walnuts", "Berries"],
+        },
+        {
+            "name": "Air-Popped Popcorn with Nutritional Yeast & Olive Oil",
+            "category": "General food idea",
+            "reason": "A general savory snack idea with popcorn, nutritional yeast, and olive oil.",
+            "highlights": ["Popcorn", "Nutritional yeast", "Olive oil"],
+        },
+    ]
+
+    missing_nutrients = [
+        label
+        for key, label in (
+            ("sugar_g", "sugars"),
+            ("added_sugar_g", "added sugars"),
+            ("sodium_mg", "sodium"),
+            ("saturated_fat_g", "saturated fat"),
+        )
+        if _nutrient_value(nutrients, key) is None
+    ]
+    missing_note = (
+        f" Label data is unavailable for {', '.join(missing_nutrients)}."
+        if missing_nutrients
+        else ""
     )
-    added_sugar = _coerce_float(
-        nutrients.get("added_sugar_g")
-        or (nutrients.get("added_sugar_g", {}).get("value") if isinstance(nutrients.get("added_sugar_g"), dict) else None)
-    )
-    sodium = _coerce_float(
-        nutrients.get("sodium_mg")
-        or (nutrients.get("sodium_mg", {}).get("value") if isinstance(nutrients.get("sodium_mg"), dict) else None)
-    )
-    sat_fat = _coerce_float(
-        nutrients.get("saturated_fat_g")
-        or (nutrients.get("saturated_fat_g", {}).get("value") if isinstance(nutrients.get("saturated_fat_g"), dict) else None)
-    )
-
-    suggestions: list[dict[str, Any]] = []
-
-    # High sugar suggestions
-    if (sugar is not None and sugar > 10) or (added_sugar is not None and added_sugar > 6):
-        suggestions.append(
-            {
-                "name": "Fresh Seasonal Fruit with Greek Yogurt & Chia Seeds",
-                "category": "Whole Food Swap",
-                "reason": "Provides naturally occurring sweetness bound to dietary fiber, along with high-quality protein and gut-friendly probiotics without refined added sugars.",
-                "highlights": ["Zero added sugars", "High protein", "Rich in fiber", "Natural micronutrients"],
-            }
-        )
-        suggestions.append(
-            {
-                "name": "Cinnamon-Spiced Roasted Almonds & Apple Slices",
-                "category": "Clean Snack Alternative",
-                "reason": "Delivers satisfying crunch and sweetness from real cinnamon and crisp apple, providing slow-burning energy and heart-healthy monounsaturated fats.",
-                "highlights": ["No high-fructose corn syrup", "Heart-healthy fats", "Low glycemic impact"],
-            }
-        )
-
-    # High sodium suggestions
-    if sodium is not None and sodium > 350:
-        suggestions.append(
-            {
-                "name": "Herb-Roasted Chickpeas (Olive Oil & Rosemary)",
-                "category": "Low-Sodium Crunchy Swap",
-                "reason": "Crispy texture packed with plant protein and fiber, naturally seasoned with antioxidant-rich rosemary, garlic, and smoked paprika instead of excessive salt.",
-                "highlights": ["Over 70% lower sodium", "High plant fiber", "Clean whole food"],
-            }
-        )
-
-    # High saturated fat suggestions
-    if sat_fat is not None and sat_fat > 3.0:
-        suggestions.append(
-            {
-                "name": "Avocado & Seed Crackers with Lemon Hummus",
-                "category": "Healthy Fats Replacement",
-                "reason": "Swaps saturated and palm oils for nutrient-rich unsaturated fatty acids from avocado, flax, and sesame seeds.",
-                "highlights": ["Zero hydrogenated oils", "Omega-3 fatty acids", "No artificial emulsifiers"],
-            }
-        )
-
-    # General clean default if product is moderate or specific flags not triggered
-    if not suggestions:
-        suggestions.append(
-            {
-                "name": "Whole-Grain Rolled Oats with Crushed Walnuts & Berries",
-                "category": "Whole Grain Swap",
-                "reason": "Minimally processed complex carbohydrates rich in beta-glucan soluble fiber to support steady blood sugar and cardiovascular health.",
-                "highlights": ["Unprocessed whole grains", "No synthetic additives", "Zero refined sugars"],
-            }
-        )
-        suggestions.append(
-            {
-                "name": "Air-Popped Popcorn with Nutritional Yeast & Olive Oil",
-                "category": "Clean Snack",
-                "reason": "Whole grain savory snack offering volume and fiber with B-vitamins and heart-healthy polyphenols.",
-                "highlights": ["100% Whole grain", "Clean ingredients", "Naturally low calorie"],
-            }
-        )
-
     advice = (
-        f"For {product_name or 'this food item'}, look for clean-label alternatives with shorter "
-        "ingredient lists, zero hydrogenated oils, and minimal added sugars per serving."
+        "These are general, non-personalized food ideas, not measured or "
+        "healthier substitutes. No matched alternative nutrient values or "
+        f"personal profile was provided.{missing_note}"
     )
     return suggestions[:4], advice
 
@@ -213,13 +208,14 @@ Accurately read and extract:
    - saturated_fat_g: Saturated fat in grams (float or null if absent)
 5. Ingredients text: the exact full ingredients text as printed on the package
 6. Ingredients: array of individually parsed, trimmed ingredient strings without nested commas
-7. Food suggestions: Provide 3 to 4 healthier, practical food alternatives or smarter swaps for this specific product.
+7. Food suggestions: Provide 3 to 4 practical, general food ideas. These are not verified product alternatives or personalized advice.
    For each suggestion provide:
-   - name: clear name of the healthier food, snack, or meal alternative
-   - category: e.g. "Whole Food Swap", "Clean Packaged Alternative", "Homemade Healthy Version"
-   - reason: detailed, friendly explanation of why this choice is healthier and what benefits it provides
-   - highlights: array of 3-4 short badges (e.g. ["0g Added Sugar", "Low Sodium", "High Fiber", "No Palm Oil"])
-8. Dietary advice: A concise, positive, evidence-based nutrition tip tailored specifically to this product
+   - name: a food, snack, or meal idea
+   - category: "General food idea"
+   - reason: state that nutrition depends on ingredients and portions; do not claim it is healthier
+   - highlights: descriptive food names only
+   Do not invent nutrient amounts or make quantitative, zero, lower/higher, or other comparative claims. No matched alternative product or nutrient data is supplied.
+8. Dietary advice: General, non-personalized guidance; explicitly note missing nutrient data and that no matched alternative/profile was supplied
 9. Raw text summary: All text visible on the label/package
 
 Return strictly valid JSON with this exact schema:
@@ -416,15 +412,21 @@ def extract_label_with_vision(image_bytes: bytes) -> dict[str, Any]:
         else:
             ingredients = None
 
-        food_suggestions = vision_result.get("food_suggestions")
-        dietary_advice = vision_result.get("dietary_advice") or ""
+        food_suggestions = _normalize_food_suggestions(
+            vision_result.get("food_suggestions")
+        )
+        default_suggestions, dietary_advice = generate_fallback_food_suggestions(
+            product_name,
+            {
+                "sugar_g": sugar_g,
+                "added_sugar_g": added_sugar_g,
+                "sodium_mg": sodium_mg,
+                "saturated_fat_g": sat_fat_g,
+            },
+            ingredients_text,
+        )
         if not food_suggestions:
-            food_suggestions, default_advice = generate_fallback_food_suggestions(
-                product_name,
-                {"sugar_g": sugar_g, "added_sugar_g": added_sugar_g, "sodium_mg": sodium_mg, "saturated_fat_g": sat_fat_g},
-                ingredients_text,
-            )
-            dietary_advice = dietary_advice or default_advice
+            food_suggestions = default_suggestions
 
         ocr_text = vision_result.get("raw_text_summary") or ""
 

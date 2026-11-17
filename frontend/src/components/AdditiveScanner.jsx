@@ -3,6 +3,14 @@ import Button from "./ui/Button";
 import Icon from "./ui/Icon";
 import Spinner from "./ui/Spinner";
 import { revokeInactiveImagePreviewUrls } from "./imagePreviewUrls.js";
+import ImageProcessingDisclosure from "./ImageProcessingDisclosure";
+import {
+  MAX_INGREDIENT_TEXT_LENGTH,
+  validateIngredientText,
+} from "../features/nutrition/ingredientReview.js";
+
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const ACCEPTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 const PRESETS = [
   {
@@ -26,14 +34,17 @@ const PRESETS = [
     description: "Features intense artificial sweeteners and ammoniated caramel color",
   },
   {
-    title: "Clean Label Whole Granola",
+    title: "Oat, Honey & Almond Granola",
     text: "Organic rolled oats, wildflower honey, coconut oil, roasted almonds, cinnamon, sea salt",
-    description: "Whole food ingredients with no artificial additives or preservatives",
+    description: "Example ingredient list with oats, honey, almonds, cinnamon, and salt",
   },
 ];
 
 export default function AdditiveScanner({ apiBaseUrl }) {
   const [ingredientsText, setIngredientsText] = useState("");
+  const [extractedIngredientsText, setExtractedIngredientsText] = useState("");
+  const [analyzedIngredientsText, setAnalyzedIngredientsText] = useState("");
+  const [analysisSource, setAnalysisSource] = useState("");
   const [scanResult, setScanResult] = useState(null);
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState("");
@@ -68,6 +79,23 @@ export default function AdditiveScanner({ apiBaseUrl }) {
   async function handleImageUpload(file) {
     if (!file) return;
     setError("");
+    setScanResult(null);
+    setExtractedIngredientsText("");
+    setIngredientsText("");
+    setAnalyzedIngredientsText("");
+    setFoodSuggestions([]);
+    setDietaryAdvice("");
+    setScannedImageName("");
+    setScannedPreviewUrl("");
+    if (!ACCEPTED_IMAGE_TYPES.has(file.type)) {
+      setError("Choose a JPEG, PNG, or WebP image.");
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      setError("Image must be 10 MiB or smaller.");
+      return;
+    }
+
     setIsUploadingImage(true);
     setScannedImageName(file.name);
     const objectUrl = URL.createObjectURL(file);
@@ -97,13 +125,15 @@ export default function AdditiveScanner({ apiBaseUrl }) {
       const text =
         data.ingredients_text ||
         (Array.isArray(data.ingredients) ? data.ingredients.join(", ") : "");
-      if (!text.trim()) {
+      const validatedText = validateIngredientText(text);
+      if (!validatedText.valid) {
         throw new Error(
-          "Could not detect any ingredient text in this image. Please enter ingredients manually or try a clearer photo."
+          "Could not detect usable ingredient text in this image. Please enter ingredients manually or try a clearer photo."
         );
       }
 
-      setIngredientsText(text);
+      setExtractedIngredientsText(validatedText.text);
+      setIngredientsText(validatedText.text);
       if (
         Array.isArray(data.food_suggestions) &&
         data.food_suggestions.length > 0
@@ -114,10 +144,8 @@ export default function AdditiveScanner({ apiBaseUrl }) {
       }
       setDietaryAdvice(data.dietary_advice || "");
       setVisionProvider(data.vision_provider || "rule_based");
-
-      await runScan(text);
     } catch (err) {
-      setError(err.message || "Failed to analyze image.");
+      setError(err.message || "Failed to extract label text.");
     } finally {
       setIsUploadingImage(false);
     }
@@ -125,19 +153,21 @@ export default function AdditiveScanner({ apiBaseUrl }) {
 
   async function runScan(textToScan) {
     const text = typeof textToScan === "string" ? textToScan : ingredientsText;
-    if (!text.trim()) {
-      setError("Please enter or paste an ingredients list to scan.");
+    const validatedText = validateIngredientText(text);
+    if (!validatedText.valid) {
+      setError(validatedText.error);
       return;
     }
 
     setError("");
+    setScanResult(null);
     setIsScanning(true);
 
     try {
       const response = await fetch(`${apiBaseUrl}/analyze/ingredients`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ingredients_text: text }),
+        body: JSON.stringify({ ingredients_text: validatedText.text }),
       });
 
       if (!response.ok) {
@@ -153,6 +183,14 @@ export default function AdditiveScanner({ apiBaseUrl }) {
 
       const result = await response.json();
       setScanResult(result);
+      setAnalyzedIngredientsText(validatedText.text);
+      setAnalysisSource(
+        extractedIngredientsText
+          ? validatedText.text === extractedIngredientsText
+            ? "Reviewed OCR text"
+            : "User-corrected OCR text"
+          : "Manually entered text"
+      );
     } catch (err) {
       setError(
         err instanceof TypeError
@@ -165,8 +203,26 @@ export default function AdditiveScanner({ apiBaseUrl }) {
   }
 
   function handlePresetSelect(presetText) {
+    setExtractedIngredientsText("");
+    setAnalyzedIngredientsText("");
+    setAnalysisSource("");
+    setScannedImageName("");
+    setScannedPreviewUrl("");
+    setFoodSuggestions([]);
+    setDietaryAdvice("");
     setIngredientsText(presetText);
     runScan(presetText);
+  }
+
+  function updateIngredientsText(value) {
+    setIngredientsText(value);
+    setScanResult(null);
+    setAnalyzedIngredientsText("");
+    setAnalysisSource("");
+    if (extractedIngredientsText && value.trim() !== extractedIngredientsText) {
+      setFoodSuggestions([]);
+      setDietaryAdvice("");
+    }
   }
 
   function getVerdictDetails(result) {
@@ -215,7 +271,7 @@ export default function AdditiveScanner({ apiBaseUrl }) {
             <p className="step-label">INGREDIENT SCANNER</p>
             <h2>Check for Additives & Ingredients</h2>
           </div>
-          <span className="optional-label">Evidence-based analysis</span>
+          <span className="optional-label">Catalog-backed information</span>
         </div>
 
         <p className="scanner-instructions">
@@ -231,12 +287,15 @@ export default function AdditiveScanner({ apiBaseUrl }) {
             type="file"
             accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
             className="visually-hidden"
-            onChange={(e) => handleImageUpload(e.target.files?.[0])}
+            onChange={(event) => {
+              void handleImageUpload(event.target.files?.[0]);
+              event.currentTarget.value = "";
+            }}
           />
           <div className="scanner-image-upload-row">
             <div className="scanner-upload-prompt">
               <span aria-hidden="true">📸</span>
-              <span>Scan label or package photo (Gemini Vision)</span>
+              <span>Extract ingredient text from a label photo</span>
             </div>
             {scannedImageName ? (
               <div className="scanned-image-preview-badge">
@@ -274,6 +333,7 @@ export default function AdditiveScanner({ apiBaseUrl }) {
               </button>
             )}
           </div>
+          <ImageProcessingDisclosure />
         </div>
 
         {/* Quick Presets */}
@@ -300,20 +360,42 @@ export default function AdditiveScanner({ apiBaseUrl }) {
             runScan();
           }}
         >
+          {extractedIngredientsText && (
+            <section className="ingredient-review-source" aria-labelledby="ocr-source-title">
+              <h3 id="ocr-source-title">Original OCR extraction</h3>
+              <p>This text is read-only evidence from the uploaded image.</p>
+              <pre>{extractedIngredientsText}</pre>
+            </section>
+          )}
+
           <label className="input-group" htmlFor="ingredients-input">
-            <span className="input-label">Ingredients list</span>
+            <span className="input-label">
+              {extractedIngredientsText
+                ? "Reviewed ingredients list (editable)"
+                : "Ingredients list"}
+            </span>
             <span className="input-description">
-              Comma-separated ingredients (e.g. &ldquo;wheat flour, water, titanium dioxide (E171), citric acid&rdquo;)
+              {extractedIngredientsText
+                ? "Check and correct the OCR text. Only this edited field is submitted for analysis."
+                : "Comma-separated ingredients (e.g. “wheat flour, water, titanium dioxide (E171), citric acid”)"}
             </span>
             <textarea
               id="ingredients-input"
               className="ingredients-textarea"
               rows={5}
+              maxLength={MAX_INGREDIENT_TEXT_LENGTH}
               placeholder="e.g. Enriched flour, water, high fructose corn syrup, potassium bromate, citric acid..."
               value={ingredientsText}
-              onChange={(e) => setIngredientsText(e.target.value)}
+              onChange={(e) => updateIngredientsText(e.target.value)}
             />
           </label>
+          {extractedIngredientsText && (
+            <p className="ingredient-review-status" role="status">
+              {ingredientsText.trim() === extractedIngredientsText
+                ? "Reviewed text is unchanged from OCR."
+                : "Reviewed text has been edited by you."}
+            </p>
+          )}
 
           {error && (
             <p className="form-error" role="alert">
@@ -334,7 +416,9 @@ export default function AdditiveScanner({ apiBaseUrl }) {
                 </>
               ) : (
                 <>
-                  Scan for additives
+                  {extractedIngredientsText
+                    ? "Analyze reviewed ingredients"
+                    : "Scan for additives"}
                   <span aria-hidden="true">→</span>
                 </>
               )}
@@ -346,7 +430,14 @@ export default function AdditiveScanner({ apiBaseUrl }) {
                 className="clear-button"
                 onClick={() => {
                   setIngredientsText("");
+                  setExtractedIngredientsText("");
+                  setAnalyzedIngredientsText("");
+                  setAnalysisSource("");
+                  setScannedImageName("");
+                  setScannedPreviewUrl("");
                   setScanResult(null);
+                  setFoodSuggestions([]);
+                  setDietaryAdvice("");
                   setError("");
                 }}
               >
@@ -364,9 +455,9 @@ export default function AdditiveScanner({ apiBaseUrl }) {
             <strong>The Scientific Approach</strong>
           </div>
           <p>
-            Food additives serve vital functions: preventing dangerous food spoilage (like botulism),
-            stabilizing nutrients, and maintaining texture. We avoid blanket alarmism and categorize
-            additives by transparent scientific assessments from EFSA, FDA, and WHO/JECFA.
+            Food additives can serve different technical purposes. Review each
+            entry's source and verification state; a catalog match does not
+            establish product exposure, safety, or health effects.
           </p>
         </div>
       </section>
@@ -376,6 +467,13 @@ export default function AdditiveScanner({ apiBaseUrl }) {
         {scanResult ? (
           <div className="results-content">
             <p className="step-label">EVALUATION SUMMARY</p>
+            {analysisSource && (
+              <p className="ingredient-analysis-source">
+                Analysis based on: {analysisSource}.
+                {analyzedIngredientsText &&
+                  ` ${analyzedIngredientsText.length} characters submitted.`}
+              </p>
+            )}
             <div className={`verdict-banner ${verdict.badgeClass}`}>
               <div>
                 <span className="verdict-tag">Overall Assessment</span>
@@ -510,7 +608,7 @@ export default function AdditiveScanner({ apiBaseUrl }) {
                       🌱
                     </span>
                     <div>
-                      <p className="step-label">SMART NUTRITION CHOICES</p>
+                      <p className="step-label">GENERAL FOOD IDEAS</p>
                       <h4
                         style={{
                           margin: 0,
@@ -519,16 +617,21 @@ export default function AdditiveScanner({ apiBaseUrl }) {
                           color: "#1a3826",
                         }}
                       >
-                        Healthy Food Suggestions &amp; Alternatives
+                        General Food Suggestions
                       </h4>
                     </div>
                   </div>
                   <span className="ai-vision-pill">
                     {visionProvider === "gemini"
-                      ? "Powered by Gemini Vision"
-                      : "LabelLens rule-based suggestions"}
+                      ? "AI-generated ideas · not verified"
+                      : "General food ideas"}
                   </span>
                 </div>
+                <p className="suggestion-qualification">
+                  General suggestions only—not personalized or verified
+                  comparisons with this product. No nutrient savings or health
+                  outcomes are established.
+                </p>
 
                 {dietaryAdvice && (
                   <div className="dietary-advice-card">
@@ -536,7 +639,7 @@ export default function AdditiveScanner({ apiBaseUrl }) {
                       💡
                     </span>
                     <div className="advice-content">
-                      <strong>Personalized Nutrition Advice</strong>
+                      <strong>General Nutrition Note</strong>
                       <p>{dietaryAdvice}</p>
                     </div>
                   </div>
@@ -596,9 +699,9 @@ export default function AdditiveScanner({ apiBaseUrl }) {
               purpose, and review evidence-based concern levels.
             </p>
             <div className="scanner-empty-hints">
-              <span className="hint-pill">Evidence-based ratings</span>
-              <span className="hint-pill">Non-alarmist classifications</span>
-              <span className="hint-pill">EFSA & FDA verified</span>
+              <span className="hint-pill">Source-aware records</span>
+              <span className="hint-pill">Review status shown</span>
+              <span className="hint-pill">No match is not proof of safety</span>
             </div>
           </div>
         )}

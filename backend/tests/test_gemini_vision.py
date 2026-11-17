@@ -30,7 +30,7 @@ def test_gemini_vision_reuses_shared_provider_configuration(monkeypatch):
     assert gemini_vision.get_candidate_models()[0] == "gemini-test-model"
 
 
-def test_fallback_food_suggestions_for_high_sugar_and_sodium():
+def test_fallback_food_suggestions_are_deterministic_general_ideas():
     nutrients = {
         "sugar_g": 18.0,
         "added_sugar_g": 14.0,
@@ -44,9 +44,102 @@ def test_fallback_food_suggestions_for_high_sugar_and_sodium():
     )
     assert len(suggestions) > 0
     names = [s["name"] for s in suggestions]
-    assert any("Fruit" in name or "Greek Yogurt" in name for name in names)
-    assert any("Chickpeas" in name for name in names)
-    assert "Crunchy Treat" in advice
+    assert any("Oats" in name for name in names)
+    assert "general, non-personalized" in advice
+    assert "Crunchy Treat" not in advice
+
+
+def test_fallback_suggestions_do_not_depend_on_basis():
+    nutrient_values = {
+        "sugar_g": 18.0,
+        "added_sugar_g": 14.0,
+        "sodium_mg": 520.0,
+        "saturated_fat_g": 4.5,
+    }
+    results = [
+        gemini_vision.generate_fallback_food_suggestions(
+            product_name="Snack",
+            nutrients={**nutrient_values, **basis_data},
+            ingredients_text=None,
+        )
+        for basis_data in (
+            {},
+            {"basis": "per_serving"},
+            {"basis": "unknown"},
+            {"basis": None},
+        )
+    ]
+    assert all(result == results[0] for result in results[1:])
+
+
+def test_fallback_suggestions_are_general_and_do_not_claim_nutrient_values():
+    suggestions, advice = gemini_vision.generate_fallback_food_suggestions(
+        product_name="Snack",
+        nutrients={
+            "sugar_g": 18.0,
+            "added_sugar_g": 14.0,
+            "sodium_mg": 520.0,
+            "saturated_fat_g": 4.5,
+        },
+        ingredients_text=None,
+    )
+    text = " ".join(
+        [advice]
+        + [
+            f"{item['name']} {item['category']} {item['reason']} "
+            + " ".join(item["highlights"])
+            for item in suggestions
+        ]
+    ).casefold()
+    assert "general, non-personalized" in advice
+    assert "matched alternative nutrient values" in advice
+    assert "not measured or healthier substitutes" in advice
+    assert "%" not in text
+    assert "zero" not in text
+    assert "0g" not in text
+
+
+def test_fallback_suggestions_make_missing_nutrients_explicit():
+    suggestions, advice = gemini_vision.generate_fallback_food_suggestions(
+        product_name=None,
+        nutrients={"sugar_g": None, "sodium_mg": {"value": None}},
+        ingredients_text=None,
+    )
+    assert suggestions
+    assert "Label data is unavailable" in advice
+    assert "sugars" in advice
+    assert "sodium" in advice
+    assert "added sugars" in advice
+    assert "saturated fat" in advice
+
+
+def test_unmatched_and_incomparable_suggestion_claims_are_discarded():
+    suggestions = gemini_vision._normalize_food_suggestions(
+        [
+            {
+                "name": "70% Less Sodium Herb-Roasted Chickpeas",
+                "category": "70% less sodium per 100 g",
+                "reason": "Lower sodium than this per-serving product.",
+                "highlights": ["Zero added sugar"],
+                "comparison": {
+                    "product": {"sodium_mg": 500, "basis": "per_serving"},
+                    "alternative": {"sodium_mg": 150, "basis": "per_100g"},
+                },
+            },
+            {
+                "name": "Greek Yogurt with Fruit",
+                "category": "Whole Food Swap",
+                "reason": "0g added sugar and 20% less sugar.",
+                "highlights": ["High protein"],
+            },
+        ]
+    )
+    assert [item["name"] for item in suggestions] == ["Greek Yogurt with Fruit"]
+    assert suggestions[0]["category"] == "General food idea"
+    assert "not a measured comparison" in suggestions[0]["reason"]
+    assert suggestions[0]["highlights"] == ["General idea"]
+    assert "70%" not in suggestions[0]["reason"]
+    assert "0g" not in suggestions[0]["reason"]
 
 
 def test_call_gemini_vision_falls_back_on_429():
@@ -161,4 +254,6 @@ def test_extract_label_with_vision_returns_full_structure():
         assert parsed["vision_provider"] == "gemini"
         assert len(parsed["food_suggestions"]) == 1
         assert parsed["food_suggestions"][0]["name"] == "Steel Cut Oats with Fresh Berries"
+        assert parsed["food_suggestions"][0]["category"] == "General food idea"
+        assert "general, non-personalized" in parsed["dietary_advice"]
         assert parsed["additive_analysis"]["total_additives_detected"] == 0

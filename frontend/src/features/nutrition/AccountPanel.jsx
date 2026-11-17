@@ -1,8 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import Button from "../../components/ui/Button";
 import { getApiErrorMessage } from "./nutritionUtils";
-import SavedProductComparison from "./SavedProductComparison";
+import { mergeScanHistoryPages } from "./ingredientReview.js";
+import { fetchScanHistoryPage } from "./scanHistoryApi.js";
+
+const SCAN_HISTORY_PAGE_SIZE = 20;
 
 const HEALTH_CONDITIONS = [
   "Diabetes",
@@ -26,7 +29,13 @@ const ALLERGENS = [
   "Sesame",
 ];
 
-async function readResponse(response, action) {
+async function readResponse(response, action, onAuthExpired) {
+  if (response.status === 401 && onAuthExpired) {
+    onAuthExpired();
+    const error = new Error("Your session expired. Sign in again.");
+    error.status = 401;
+    throw error;
+  }
   let data;
   try {
     data = await response.json();
@@ -47,6 +56,8 @@ export default function AccountPanel({
   apiBaseUrl,
   accessToken,
   onAuthChange,
+  onAuthExpired,
+  sessionExpired,
   historyVersion,
   onExpertiseChange,
   defaultOpen = false,
@@ -65,23 +76,39 @@ export default function AccountPanel({
   const [nutritionGoals, setNutritionGoals] = useState([]);
   const [calorieGoal, setCalorieGoal] = useState("");
   const [proteinGoal, setProteinGoal] = useState("");
-  const [selectedScanIds, setSelectedScanIds] = useState([]);
   const [history, setHistory] = useState([]);
+  const [hasMoreHistory, setHasMoreHistory] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [isLoadingMoreHistory, setIsLoadingMoreHistory] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const historyLoadLockRef = useRef(false);
 
   useEffect(() => {
     if (!accessToken) return undefined;
 
     let active = true;
     async function loadAccount() {
+      setIsLoadingHistory(true);
       try {
         const headers = { Authorization: `Bearer ${accessToken}` };
-        const profileResponse = await fetch(`${apiBaseUrl}/profile`, { headers });
-        const savedProfile = await readResponse(profileResponse, "Profile load");
-        const historyResponse = await fetch(`${apiBaseUrl}/scans?limit=20`, { headers });
-        const scans = await readResponse(historyResponse, "Scan history");
+        const [profileResponse, historyPage] = await Promise.all([
+          fetch(`${apiBaseUrl}/profile`, { headers }),
+          fetchScanHistoryPage({
+            apiBaseUrl,
+            accessToken,
+            offset: 0,
+            limit: SCAN_HISTORY_PAGE_SIZE,
+            onAuthExpired,
+          }),
+        ]);
+        const savedProfile = await readResponse(
+          profileResponse,
+          "Profile load",
+          onAuthExpired,
+        );
+        const scans = historyPage.scans;
         if (!active) return;
         setProfile(savedProfile);
         setName(savedProfile.name);
@@ -96,17 +123,46 @@ export default function AccountPanel({
         setCalorieGoal(savedProfile.calorie_goal_kcal == null ? "" : String(savedProfile.calorie_goal_kcal));
         setProteinGoal(savedProfile.protein_goal_g == null ? "" : String(savedProfile.protein_goal_g));
         setHistory(scans);
-        setSelectedScanIds([]);
+        setHasMoreHistory(historyPage.hasMore);
         setError("");
       } catch (requestError) {
-        if (active) setError(requestError.message);
+        if (active && requestError.status !== 401) setError(requestError.message);
+      } finally {
+        if (active) setIsLoadingHistory(false);
       }
     }
     void loadAccount();
     return () => {
       active = false;
     };
-  }, [accessToken, apiBaseUrl, historyVersion, onExpertiseChange]);
+  }, [accessToken, apiBaseUrl, historyVersion, onExpertiseChange, onAuthExpired]);
+
+  async function loadMoreHistory() {
+    if (
+      !accessToken ||
+      historyLoadLockRef.current ||
+      !hasMoreHistory
+    ) return;
+    historyLoadLockRef.current = true;
+    setIsLoadingMoreHistory(true);
+    setError("");
+    try {
+      const nextPage = await fetchScanHistoryPage({
+        apiBaseUrl,
+        accessToken,
+        offset: history.length,
+        limit: SCAN_HISTORY_PAGE_SIZE,
+        onAuthExpired,
+      });
+      setHistory((current) => mergeScanHistoryPages(current, nextPage.scans));
+      setHasMoreHistory(nextPage.hasMore);
+    } catch (requestError) {
+      if (requestError.status !== 401) setError(requestError.message);
+    } finally {
+      historyLoadLockRef.current = false;
+      setIsLoadingMoreHistory(false);
+    }
+  }
 
   async function submitAccount(event) {
     event.preventDefault();
@@ -133,7 +189,7 @@ export default function AccountPanel({
         "Sign in"
       );
       setPassword("");
-      onAuthChange(login.access_token);
+      onAuthChange(login.access_token, login.expires_in);
       setNotice("Signed in. Your profile and saved scan history are being loaded.");
     } catch (requestError) {
       setError(requestError instanceof TypeError
@@ -177,7 +233,8 @@ export default function AccountPanel({
               .filter(Boolean),
           }),
         }),
-        "Profile save"
+        "Profile save",
+        onAuthExpired,
       );
       setProfile(saved);
       onExpertiseChange?.(saved.expertise_level);
@@ -187,9 +244,11 @@ export default function AccountPanel({
       setNutritionGoals(saved.nutrition_goals ?? []);
       setNotice("Profile preferences saved. Unsupported medical conditions are still not evaluated.");
     } catch (requestError) {
-      setError(requestError instanceof TypeError
-        ? `Could not connect to the Label Lens API at ${apiBaseUrl}.`
-        : requestError.message);
+      if (requestError.status !== 401) {
+        setError(requestError instanceof TypeError
+          ? `Could not connect to the Label Lens API at ${apiBaseUrl}.`
+          : requestError.message);
+      }
     } finally {
       setBusy(false);
     }
@@ -314,7 +373,9 @@ export default function AccountPanel({
           </form>
           <div className="scan-history">
             <h3>Saved scan history</h3>
-            {history.length ? (
+            {isLoadingHistory && history.length === 0 ? (
+              <p role="status">Loading saved scans…</p>
+            ) : history.length ? (
               <ul>
                 {history.map((scan) => {
                   const stored = scan.analysis_reports?.at(-1)?.analysis_data?.input;
@@ -322,16 +383,6 @@ export default function AccountPanel({
                   const productName = stored?.product_name ?? label?.product_name ?? "Unnamed product";
                   return (
                     <li key={scan.id}>
-                      <label className="saved-scan-selection">
-                        <input
-                          type="checkbox"
-                          checked={selectedScanIds.includes(scan.id)}
-                          disabled={!selectedScanIds.includes(scan.id) && selectedScanIds.length >= 5}
-                          onChange={() => toggleSelection(selectedScanIds, setSelectedScanIds, scan.id)}
-                          aria-label={`Select ${productName} for comparison`}
-                        />
-                        Compare
-                      </label>
                       <strong>{productName}</strong>
                       <span>{new Date(scan.created_at).toLocaleString()}</span>
                       <span>{scan.scan_status}</span>
@@ -340,19 +391,26 @@ export default function AccountPanel({
                 })}
               </ul>
             ) : <p>No saved scans yet.</p>}
-            {history.length > 0 && (
-              <SavedProductComparison
-                apiBaseUrl={apiBaseUrl}
-                accessToken={accessToken}
-                selectedIds={selectedScanIds}
-                onSelectionChange={setSelectedScanIds}
-              />
+            {hasMoreHistory && (
+              <Button
+                type="button"
+                className="secondary-button"
+                disabled={isLoadingMoreHistory}
+                onClick={loadMoreHistory}
+              >
+                {isLoadingMoreHistory ? "Loading older scans…" : "Load older scans"}
+              </Button>
             )}
           </div>
           {profile && <p className="muted-copy">Personalized results use only implemented profile rules and may explicitly report insufficient data.</p>}
         </div>
       ) : (
         <form className="account-content" onSubmit={submitAccount}>
+          {sessionExpired && (
+            <p className="legacy-api-notice" role="status">
+              Your session expired. Sign in again to access your profile and saved scans.
+            </p>
+          )}
           <div className="account-mode-toggle" role="group" aria-label="Account action">
             <button type="button" aria-pressed={mode === "login"} onClick={() => setMode("login")}>Sign in</button>
             <button type="button" aria-pressed={mode === "register"} onClick={() => setMode("register")}>Create account</button>

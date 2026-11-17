@@ -1,6 +1,7 @@
 import Icon from "../../components/ui/Icon";
 import Button from "../../components/ui/Button";
 import Spinner from "../../components/ui/Spinner";
+import ImageProcessingDisclosure from "../../components/ImageProcessingDisclosure";
 
 export default function LabelUploadForm({
   fileInputRef,
@@ -27,7 +28,10 @@ export default function LabelUploadForm({
           className="visually-hidden"
           type="file"
           accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
-          onChange={(event) => onSelectImage(event.target.files?.[0])}
+          onChange={(event) => {
+            onSelectImage(event.target.files?.[0]);
+            event.currentTarget.value = "";
+          }}
         />
         {selectedImage ? (
           <div className="selected-image">
@@ -105,9 +109,7 @@ export default function LabelUploadForm({
             </>
           )}
         </Button>
-        <p className="form-footnote">
-          Image is processed by your configured Label Lens backend.
-        </p>
+        <ImageProcessingDisclosure />
       </form>
 
       <aside className="upload-note">

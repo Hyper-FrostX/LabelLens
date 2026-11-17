@@ -18,6 +18,10 @@ def test_health_endpoint_reports_healthy():
     assert response.json() == {"status": "healthy"}
 
 
+def test_standalone_saved_scan_comparison_route_is_not_registered():
+    assert "/scans/compare" not in app.openapi()["paths"]
+
+
 @pytest.mark.parametrize(
     ("basis", "expected_context"),
     [
@@ -30,6 +34,11 @@ def test_health_endpoint_reports_healthy():
             "per_100g",
             "Percentages represent contribution to the project's daily "
             "reference from 100 g of the product.",
+        ),
+        (
+            "per_100ml",
+            "Percentages represent contribution to the project's daily "
+            "reference from 100 ml of the product.",
         ),
     ],
 )
@@ -65,6 +74,41 @@ def test_nutrition_endpoint_accepts_missing_nutrients():
     assert response.status_code == 200
     assert response.json()["sugar_teaspoons"] is None
     assert response.json()["nutrients"]["sugar"]["level"] == "unknown"
+
+
+def test_legacy_label_analysis_accepts_per_100ml_basis():
+    response = client.post(
+        "/analyze/label",
+        json={
+            "basis": "per_100ml",
+            "sugar_g": 5,
+            "sugar_unit": "g",
+            "sodium_mg": 40,
+            "sodium_unit": "mg",
+        },
+    )
+    assert response.status_code == 200
+    result = response.json()
+    assert result["basis"] == "per_100ml"
+    assert all(
+        item["basis"] == "per_100ml"
+        for item in result["excess_nutrients"]
+    )
+
+
+def test_legacy_label_analysis_rejects_unknown_basis():
+    response = client.post(
+        "/analyze/label",
+        json={"basis": "per_package", "sugar_g": 10, "sugar_unit": "g"},
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize("basis", [[], {"value": "per_100g"}])
+def test_legacy_label_analysis_rejects_non_string_basis(basis):
+    response = client.post("/analyze/label", json={"basis": basis})
+
+    assert response.status_code == 422
 
 
 @pytest.mark.parametrize(
@@ -374,6 +418,20 @@ def test_analyze_ingredients_endpoint_with_text():
     assert result["overall_concern"] == "review_required"
     assert result["counts"]["review_required"] == 2
     assert "does not measure product concentration" in result["guidance_note"]
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"ingredients_text": "   "},
+        {"ingredients_text": "..., ()"},
+        {"ingredients_text": "x" * 10_001},
+        {"ingredients": ["x" * 10_001]},
+    ],
+)
+def test_analyze_ingredients_rejects_empty_or_oversized_content(payload):
+    response = client.post("/analyze/ingredients", json=payload)
+    assert response.status_code == 422
 
 
 def test_label_analysis_endpoint_returns_nutrients_and_conservative_ingredient_matches():

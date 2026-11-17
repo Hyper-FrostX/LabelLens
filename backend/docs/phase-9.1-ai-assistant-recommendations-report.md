@@ -1,5 +1,9 @@
 # Phase 9.1 — Product Assistant, Recommendations, and Provenance
 
+> Historical phase snapshot. Saved-scan Product Comparison and
+> `POST /scans/compare` were removed from the active application in Phase 11.2.
+> Product-analysis healthier alternatives remain.
+
 ## Overview
 
 Phase 9.1 extends the existing Phase 9 product analysis without replacing the

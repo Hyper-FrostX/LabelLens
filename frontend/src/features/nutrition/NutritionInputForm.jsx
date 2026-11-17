@@ -78,12 +78,12 @@ export default function NutritionInputForm({
         </fieldset>
 
         <label className="input-group">
-          <span className="input-label">Alternative comparison goal</span>
+          <span className="input-label">Alternative nutrient preference</span>
           <select
             value={recommendationGoal}
             onChange={(event) => onRecommendationGoalChange(event.target.value)}
           >
-            <option value="balanced">Balanced comparison</option>
+            <option value="balanced">Balanced / no single preference</option>
             <option value="lower_sugar">Lower sugar</option>
             <option value="lower_sodium">Lower sodium</option>
             <option value="lower_saturated_fat">Lower saturated fat</option>
@@ -91,7 +91,7 @@ export default function NutritionInputForm({
             <option value="higher_fiber">Higher fiber</option>
             <option value="lower_calories">Lower calories</option>
           </select>
-          <span className="muted-copy">Recommendations use only comparable stored product data.</span>
+          <span className="muted-copy">Alternatives use only comparable stored product data; otherwise they are withheld.</span>
         </label>
 
         <label className="input-group serving-size-input" htmlFor="analysis-serving-size">

@@ -123,6 +123,22 @@ test("returns readable HTTP and malformed-response errors and clears loading sta
   );
 });
 
+test("clears an expired authenticated session after a 401 response", async () => {
+  let expired = 0;
+  await assert.rejects(
+    requestProductAnswer({
+      apiBaseUrl: "http://localhost:8000",
+      productContext: { question: "Question", context: {} },
+      explanationLevel: "standard",
+      accessToken: "expired-token",
+      onAuthExpired: () => { expired += 1; },
+      fetchImpl: async () => response(401, { detail: "Not authenticated" }),
+    }),
+    /session expired/i,
+  );
+  assert.equal(expired, 1);
+});
+
 test("converts network failures into actionable frontend errors", async () => {
   await assert.rejects(
     requestProductAnswer({

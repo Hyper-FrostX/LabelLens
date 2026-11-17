@@ -11,8 +11,7 @@ from urllib.error import HTTPError
 from urllib.parse import quote, urlsplit
 from urllib.request import Request, urlopen
 
-from dotenv import load_dotenv
-
+from app.config.environment import load_backend_environment_file
 from app.services.product_analysis import answer_product_question
 
 _CACHE_TTL_SECONDS = 60
@@ -30,11 +29,7 @@ _OPENAI_DEFAULT_BASE_URL = "https://api.openai.com/v1"
 
 def load_backend_environment(env_path: Path | None = None) -> None:
     """Load backend/.env without overriding explicitly provided environment values."""
-    load_dotenv(
-        dotenv_path=env_path or _BACKEND_ENV_FILE,
-        override=False,
-        encoding="utf-8-sig",
-    )
+    load_backend_environment_file(env_path or _BACKEND_ENV_FILE)
 
 
 load_backend_environment()

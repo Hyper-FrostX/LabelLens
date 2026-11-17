@@ -7,6 +7,10 @@ from sqlalchemy.engine import URL, make_url
 from sqlalchemy.exc import ArgumentError
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.config.environment import load_backend_environment_file
+
+load_backend_environment_file()
+
 
 def _normalize_database_url(database_url: str | URL) -> URL:
     url = make_url(database_url) if isinstance(database_url, str) else database_url

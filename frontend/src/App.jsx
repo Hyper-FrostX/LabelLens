@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import AppShell from "./components/layout/AppShell";
 import AdditiveScanner from "./components/AdditiveScanner";
 import KnowledgeBaseExplorer from "./components/KnowledgeBaseExplorer";
 import NutritionWorkspace from "./features/nutrition/NutritionWorkspace";
+import { createAuthSession } from "./features/auth/authSession.js";
 import "./App.css";
 
 const sections = {
@@ -39,9 +40,9 @@ const sections = {
   },
   alternatives: {
     title: "Stored-product Alternatives",
-    eyebrow: "NUTRIENT COMPARISONS",
+    eyebrow: "HEALTHIER ALTERNATIVES",
     description:
-      "Compare a reviewed label with actual stored products or your own saved scans. Recommendations require comparable label values.",
+      "Explore alternatives from actual stored products when comparable label values are available. These are descriptive suggestions, not a universal product ranking.",
   },
 };
 
@@ -51,7 +52,39 @@ const API_BASE_URL = (
 
 export default function App() {
   const [activeSection, setActiveSection] = useState("ingredients");
+  const [authSession, setAuthSession] = useState(null);
+  const [sessionExpired, setSessionExpired] = useState(false);
   const section = sections[activeSection];
+
+  useEffect(() => {
+    if (!authSession) return undefined;
+    const remaining = authSession.expiresAt - Date.now();
+    const timeout = window.setTimeout(() => {
+      setAuthSession(null);
+      setSessionExpired(true);
+    }, Math.max(0, remaining));
+    return () => window.clearTimeout(timeout);
+  }, [authSession]);
+
+  const updateAuthSession = useCallback((accessToken, expiresIn = 1800) => {
+    if (typeof accessToken !== "string" || !accessToken) {
+      setAuthSession(null);
+      return;
+    }
+    const session = createAuthSession(accessToken, expiresIn);
+    if (!session) {
+      setAuthSession(null);
+      setSessionExpired(true);
+      return;
+    }
+    setAuthSession(session);
+    setSessionExpired(false);
+  }, []);
+
+  const expireAuthSession = useCallback(() => {
+    setAuthSession(null);
+    setSessionExpired(true);
+  }, []);
 
   return (
     <AppShell
@@ -65,7 +98,13 @@ export default function App() {
         <AdditiveScanner apiBaseUrl={API_BASE_URL} />
       )}
       {["scan", "history", "profile", "alternatives"].includes(activeSection) && (
-        <NutritionWorkspace focusSection={activeSection} />
+        <NutritionWorkspace
+          focusSection={activeSection}
+          accessToken={authSession?.accessToken ?? ""}
+          sessionExpired={sessionExpired}
+          onAuthChange={updateAuthSession}
+          onAuthExpired={expireAuthSession}
+        />
       )}
       {activeSection === "knowledge" && (
         <KnowledgeBaseExplorer apiBaseUrl={API_BASE_URL} />

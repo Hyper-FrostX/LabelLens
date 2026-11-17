@@ -8,6 +8,7 @@ export async function requestProductAnswer({
   accessToken,
   fetchImpl = globalThis.fetch,
   onLoadingChange = () => {},
+  onAuthExpired = () => {},
 }) {
   const headers = {
     "Content-Type": "application/json",
@@ -36,6 +37,12 @@ export async function requestProductAnswer({
         headers,
         body: legacyBody,
       });
+    }
+    if (response.status === 401 && accessToken) {
+      onAuthExpired();
+      const error = new Error("Your session expired. Sign in again.");
+      error.status = 401;
+      throw error;
     }
 
     let responseData;

@@ -10,7 +10,6 @@ from app.services.food_scoring import (
 from app.services.nutrition_intelligence import build_nutrition_intelligence
 from app.services.personalized_suitability import evaluate_product_suitability
 from app.services.product_analysis import _report_alternatives, answer_product_question
-from app.services.product_comparison import compare_saved_product_reports
 
 
 def test_normalizes_metric_serving_and_energy_units_without_crossing_bases():
@@ -420,102 +419,6 @@ def test_saved_profile_goal_ranks_real_alternatives_without_claiming_suitability
     assert result["requested_goal"] == "balanced"
     assert result["items"][0]["profile_compatibility"] == "NEEDS_REVIEW"
     assert result["items"][0]["limitation"].startswith("This is a nutrient comparison")
-
-
-def _saved_report(scan_id, product_name, basis, sugar, sugar_unit="g"):
-    return {
-        "scan_id": scan_id,
-        "analysis_data": {
-            "input": {
-                "product_name": product_name,
-                "basis": basis,
-                "sugar_g": sugar,
-                "sugar_unit": sugar_unit,
-                "sodium_mg": 100,
-                "sodium_unit": "mg",
-            },
-            "product_report": {"product": {"name": product_name}},
-        },
-    }
-
-
-def test_saved_comparison_normalizes_only_compatible_bases():
-    comparable = compare_saved_product_reports(
-        [
-            _saved_report(1, "A", "per_100g", 10),
-            {
-                "scan_id": 2,
-                "analysis_data": {
-                    "input": {
-                        "product_name": "B",
-                        "basis": "per_serving",
-                        "serving_size_text": "50 g",
-                        "sugar_g": 4,
-                        "sugar_unit": "g",
-                        "sodium_mg": 100,
-                        "sodium_unit": "mg",
-                    },
-                    "product_report": {},
-                },
-            },
-        ]
-    )
-    assert comparable["status"] == "COMPARABLE"
-    assert comparable["comparison_basis"] == "per_100g"
-    assert comparable["nutrient_comparisons"]["sugar"]["values"][1]["value"] == 8
-
-    mixed = compare_saved_product_reports(
-        [
-            _saved_report(1, "A", "per_100g", 10),
-            _saved_report(2, "B", "per_100ml", 10),
-        ]
-    )
-    assert mixed["status"] == "INSUFFICIENT_DATA"
-    assert mixed["nutrient_comparisons"] == {}
-
-
-def test_saved_comparison_reports_goal_tradeoffs_scores_and_missing_fields():
-    first = _saved_report(1, "A", "per_100g", 10)
-    first["analysis_data"]["input"].update(
-        sodium_mg=100,
-        sodium_unit="mg",
-        serving_size_text="30 g",
-    )
-    first["analysis_data"]["product_report"] = {
-        "food_intelligence": {
-            "scores": {
-                "scores": {
-                    "nutrition_quality": {"score": 80, "status": "available"},
-                    "ingredient_transparency": {"score": 60, "status": "partial_data"},
-                }
-            },
-            "personal_suitability": {"status": "NEEDS_REVIEW"},
-        },
-        "ingredients": {"text": "oats"},
-        "allergen_analysis": {
-            "declared_allergens": {"status": "provided", "label_text": ["Milk"]},
-            "may_contain": {"status": "not_provided", "label_text": []},
-        },
-    }
-    second = _saved_report(2, "B", "per_serving", 4)
-    second["analysis_data"]["input"].update(
-        serving_size_text="50 g",
-        sodium_mg=150,
-        sodium_unit="mg",
-    )
-    comparison = compare_saved_product_reports(
-        [first, second],
-        recommendation_goal="lower_sugar",
-    )
-
-    assert comparison["recommendation_goal"] == "lower_sugar"
-    assert comparison["comparison_basis"] == "per_100g"
-    assert comparison["nutrient_comparisons"]["sugar"]["values"][1]["value"] == 8
-    assert comparison["products"][0]["indicators"]["nutrition_quality"]["score"] == 80
-    assert comparison["products"][0]["allergens"]["declared"] == ["Milk"]
-    assert comparison["products"][0]["data_completeness"]["missing_nutrients"]
-    assert comparison["products"][1]["advantages"]
-    assert comparison["products"][0]["tradeoffs"]
 
 
 def test_grounded_q_and_a_reports_deterministic_fallback_and_available_strengths():

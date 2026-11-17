@@ -1,5 +1,9 @@
 # Phase 9 — Food Intelligence
 
+> Historical phase snapshot. Saved-scan Product Comparison and
+> `POST /scans/compare` were removed from the active application in Phase 11.2.
+> Product-analysis healthier alternatives remain.
+
 ## Overview
 
 Phase 9 extends the existing product-analysis route and keeps the Phase 7

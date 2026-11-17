@@ -335,12 +335,12 @@ def analyze_nutrition(
     """
     Analyze nutrition values using their stated measurement basis.
 
-    basis must be 'per_serving' or 'per_100g'.
+    basis must be 'per_serving', 'per_100g', or 'per_100ml'.
     Values must all refer to the same basis.
     """
-    if basis not in {"per_serving", "per_100g"}:
+    if basis not in {"per_serving", "per_100g", "per_100ml"}:
         raise ValueError(
-            "Basis must be 'per_serving' or 'per_100g'."
+            "Basis must be 'per_serving', 'per_100g', or 'per_100ml'."
         )
 
     nutrients = {
@@ -364,6 +364,10 @@ def analyze_nutrition(
         "per_100g": (
             "Percentages represent contribution to the project's daily "
             "reference from 100 g of the product."
+        ),
+        "per_100ml": (
+            "Percentages represent contribution to the project's daily "
+            "reference from 100 ml of the product."
         ),
     }[basis]
 

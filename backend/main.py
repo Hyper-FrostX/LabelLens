@@ -3,11 +3,20 @@ import math
 import os
 from typing import Any, Literal
 
-from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile, status
+from fastapi import (
+    Depends,
+    FastAPI,
+    File,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+    status,
+)
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
 from app.api.auth import router as auth_router
@@ -27,14 +36,18 @@ from app.schemas.label_compliance import (
     LabelComplianceReport,
 )
 from app.schemas.product_analysis import ProductAnalysisInput, ProductQuestionInput
-from app.schemas.product_comparison import ProductComparisonInput
 from app.schemas.scans import (
     AnalysisReportCreate,
     ExtractedLabelCreate,
     ScanCreate,
     ScanRead,
 )
+from app.security.cors import load_cors_settings
 from app.security.dependencies import get_current_user, get_optional_current_user
+from app.security.rate_limit import (
+    RequestRateLimiter,
+    load_rate_limit_policies,
+)
 from app.services import label_ocr
 from app.services.additive_detector import (
     ConcernLevel,
@@ -53,9 +66,11 @@ from app.services.label_parser import parse_label_text, split_ingredients_text
 from app.services.nutrition import analyze_nutrition
 from app.services.product_analysis import analyze_product, answer_product_question
 from app.services.product_assistant import ask_product_question
-from app.services.product_comparison import compare_saved_product_reports
 
 MAX_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024
+MAX_INGREDIENT_TEXT_LENGTH = 10_000
+MAX_INGREDIENT_LIST_ITEMS = 500
+request_rate_limiter = RequestRateLimiter(load_rate_limit_policies())
 
 
 app = FastAPI(
@@ -64,15 +79,11 @@ app = FastAPI(
     version="0.3.0",
 )
 
+cors_allowed_origins, cors_allow_credentials = load_cors_settings()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:5174",
-    ],
-    allow_credentials=True,
+    allow_origins=cors_allowed_origins,
+    allow_credentials=cors_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -86,7 +97,7 @@ class NutritionInput(BaseModel):
     sugar_g: float | None = Field(default=None, ge=0)
     sodium_mg: float | None = Field(default=None, ge=0)
     saturated_fat_g: float | None = Field(default=None, ge=0)
-    basis: Literal["per_serving", "per_100g"]
+    basis: Literal["per_serving", "per_100g", "per_100ml"]
 
     @field_validator("sugar_g", "sodium_mg", "saturated_fat_g")
     @classmethod
@@ -97,8 +108,46 @@ class NutritionInput(BaseModel):
 
 
 class IngredientAnalysisInput(BaseModel):
-    ingredients: list[str] | None = None
-    ingredients_text: str | None = None
+    ingredients: list[str] | None = Field(
+        default=None,
+        max_length=MAX_INGREDIENT_LIST_ITEMS,
+    )
+    ingredients_text: str | None = Field(
+        default=None,
+        max_length=MAX_INGREDIENT_TEXT_LENGTH,
+    )
+
+    @field_validator("ingredients")
+    @classmethod
+    def validate_ingredient_entries(cls, values: list[str] | None) -> list[str] | None:
+        if values is None:
+            return None
+        if sum(len(value) for value in values) > MAX_INGREDIENT_TEXT_LENGTH:
+            raise ValueError("Ingredient text must be 10,000 characters or fewer.")
+        if any(
+            not value.strip() or not any(char.isalnum() for char in value)
+            for value in values
+        ):
+            raise ValueError("Each ingredient must contain letters or numbers.")
+        return values
+
+    @field_validator("ingredients_text")
+    @classmethod
+    def validate_ingredient_text(cls, value: str | None) -> str | None:
+        if value is not None and value.strip() and not any(
+            char.isalnum() for char in value
+        ):
+            raise ValueError("Ingredient text must contain letters or numbers.")
+        return value
+
+    @model_validator(mode="after")
+    def require_ingredient_content(self):
+        if (
+            not (self.ingredients_text and self.ingredients_text.strip())
+            and not self.ingredients
+        ):
+            raise ValueError("Provide ingredient text or a non-empty ingredient list.")
+        return self
 
 
 class LabelAnalysisInput(BaseModel):
@@ -114,8 +163,27 @@ class LabelAnalysisInput(BaseModel):
     sodium_unit: str | None = Field(default=None, max_length=20)
     saturated_fat_unit: str | None = Field(default=None, max_length=20)
     ingredients_text: str | None = Field(default=None, max_length=20000)
-    food_suggestions: list[dict[str, Any]] | None = None
-    dietary_advice: str | None = None
+    food_suggestions: list[dict[str, Any]] | None = Field(
+        default=None,
+        max_length=20,
+    )
+    dietary_advice: str | None = Field(default=None, max_length=2000)
+
+    @field_validator("basis", mode="before")
+    @classmethod
+    def validate_or_clear_uncertain_basis(cls, value):
+        if value is None:
+            return value
+        if not isinstance(value, str):
+            raise ValueError("Unsupported nutrient basis.")
+        if value in {"per_serving", "per_100g", "per_100ml"}:
+            return value
+        if any(
+            marker in value.casefold()
+            for marker in ("maybe", "not sure", "uncertain", "ambiguous", "unknown")
+        ):
+            return None
+        raise ValueError("Unsupported nutrient basis.")
 
     @field_validator(
         "sugar_g",
@@ -144,6 +212,17 @@ def home():
 @app.get("/health")
 def health_check():
     return {"status": "healthy"}
+
+
+def enforce_request_rate_limit(request: Request, operation: str) -> None:
+    client = request.client.host if request.client is not None else "unknown"
+    retry_after = request_rate_limiter.check(operation, client)
+    if retry_after is not None:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Rate limit exceeded. Try again later.",
+            headers={"Retry-After": str(retry_after)},
+        )
 
 
 @app.get("/additives/knowledge-base")
@@ -347,63 +426,16 @@ def product_question_endpoint(data: ProductQuestionInput):
 @app.post("/analyze/product/ask")
 def product_ask_endpoint(
     data: ProductQuestionInput,
+    request: Request,
     current_user: User | None = Depends(get_optional_current_user),
 ):
+    enforce_request_rate_limit(request, "product_ask")
     return ask_product_question(
         data.question,
         data.context,
         explanation_level=data.explanation_level,
         user_id=current_user.id if current_user is not None else None,
     )
-
-
-@app.post("/scans/compare")
-def compare_saved_scans_endpoint(
-    data: ProductComparisonInput,
-    current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_db),
-):
-    scans = list(
-        session.scalars(
-            select(Scan)
-            .options(selectinload(Scan.analysis_reports))
-            .where(
-                Scan.user_id == current_user.id,
-                Scan.id.in_(data.scan_ids),
-            )
-        ).unique()
-    )
-    if len(scans) != len(data.scan_ids):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="One or more saved scans were not found.",
-        )
-    scans_by_id = {scan.id: scan for scan in scans}
-    reports = []
-    for scan_id in data.scan_ids:
-        scan = scans_by_id[scan_id]
-        if not scan.analysis_reports:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Every selected scan must have a saved product analysis.",
-            )
-        report = scan.analysis_reports[-1]
-        reports.append(
-            {
-                "scan_id": scan.id,
-                "analysis_data": report.analysis_data,
-            }
-        )
-    try:
-        return compare_saved_product_reports(
-            reports,
-            recommendation_goal=data.recommendation_goal,
-        )
-    except ValueError as error:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="A saved analysis could not be compared because its data is invalid.",
-        ) from error
 
 
 @app.get("/scans", response_model=list[ScanRead])
@@ -445,9 +477,11 @@ def read_scan_history_item(
     ),
 )
 async def extract_label_endpoint(
+    request: Request,
     file: UploadFile = File(...),
     session: Session | None = Depends(get_optional_db),
 ):
+    enforce_request_rate_limit(request, "extract_label")
     image_bytes = await file.read(MAX_IMAGE_UPLOAD_BYTES + 1)
     if len(image_bytes) > MAX_IMAGE_UPLOAD_BYTES:
         raise HTTPException(

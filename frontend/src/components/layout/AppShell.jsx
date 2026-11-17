@@ -4,7 +4,6 @@ const navigationGroups = [
   {
     label: "Workspace",
     items: [
-      { id: "overview", label: "Overview", icon: "overview", planned: true },
       { id: "scan", label: "Scan Food", icon: "scan" },
     ],
   },
@@ -16,7 +15,7 @@ const navigationGroups = [
     ],
   },
   {
-    label: "Product tools",
+    label: "Recommendations",
     items: [
       { id: "alternatives", label: "Stored-product Alternatives", icon: "alternatives" },
     ],
@@ -54,17 +53,14 @@ export default function AppShell({
               <div className="nav-group-items">
                 {group.items.map((item) => (
                   <button
-                    className={`nav-item ${activeSection === item.id ? "active" : ""} ${item.planned ? "planned" : ""}`}
+                    className={`nav-item ${activeSection === item.id ? "active" : ""}`}
                     type="button"
                     key={item.id}
-                    disabled={item.planned}
                     aria-current={activeSection === item.id ? "page" : undefined}
-                    title={item.planned ? "Planned for a future release" : undefined}
                     onClick={() => onNavigate(item.id)}
                   >
                     <Icon name={item.icon} size={18} />
                     <span>{item.label}</span>
-                    {item.planned && <span className="planned-label">Planned</span>}
                   </button>
                 ))}
               </div>
