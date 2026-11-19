@@ -4,7 +4,6 @@ import LabelReviewForm from "./LabelReviewForm";
 import LabelUploadForm from "./LabelUploadForm";
 import NutritionInputForm from "./NutritionInputForm";
 import NutritionReport from "./NutritionReport";
-import AccountPanel from "./AccountPanel";
 import ProductAnalysisSections from "./ProductAnalysisSections";
 import ProductQuestionAnswer from "./ProductQuestionAnswer";
 import { buildProductQuestionContext } from "./productQuestionContext";
@@ -27,7 +26,7 @@ import {
 const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000"
 ).replace(/\/+$/, "");
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
 const EMPTY_NUTRIENTS = {
   sugar_g: "",
   added_sugar_g: "",
@@ -42,11 +41,13 @@ const EMPTY_ADDITIONAL_NUTRIENTS = Object.fromEntries(
 );
 
 export default function NutritionWorkspace({
-  focusSection = "scan",
   accessToken = "",
-  sessionExpired = false,
-  onAuthChange = () => {},
   onAuthExpired = () => {},
+  explanationLevel = "beginner",
+  onExplanationLevelChange = () => {},
+  onShowIngredients = () => {},
+  healthConditions = [],
+  allergens = [],
 }) {
   const [selectedImage, setSelectedImage] = useState(null);
   const [previewUrl, setPreviewUrl] = useState("");
@@ -69,11 +70,8 @@ export default function NutritionWorkspace({
   const [analysisError, setAnalysisError] = useState("");
   const [confirmedLabel, setConfirmedLabel] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [explanationLevel, setExplanationLevel] = useState("beginner");
   const [analysisContext, setAnalysisContext] = useState(null);
   const [usedLegacyAnalysis, setUsedLegacyAnalysis] = useState(false);
-  const [saveToHistory, setSaveToHistory] = useState(false);
-  const [historyVersion, setHistoryVersion] = useState(0);
 
   const fileInputRef = useRef(null);
   const imagePreviewUrlsRef = useRef(new Set());
@@ -87,7 +85,6 @@ export default function NutritionWorkspace({
       setAnalysisResult(null);
       setAnalysisContext(null);
       setConfirmedLabel(null);
-      setSaveToHistory(false);
       setIsAnalyzing(false);
       setAnalysisError("");
     }
@@ -164,7 +161,7 @@ export default function NutritionWorkspace({
     }
     if (file.size > MAX_IMAGE_BYTES) {
       setImagePreview(null);
-      setUploadError("Image must be 10 MiB or smaller.");
+      setUploadError("Image must be 15 MB or smaller.");
       return;
     }
 
@@ -330,7 +327,6 @@ export default function NutritionWorkspace({
         recommendationGoal,
         servingSize: valuesSnapshot?.servingSize ?? analysisServingSize,
         explanationLevel,
-        saveToHistory,
         labelText: extraction?.ocr_text ?? "",
         labelCorrections: valuesSnapshot?.labelCorrections ?? {},
         correctionsConfirmed: Boolean(extraction && valuesSnapshot),
@@ -401,9 +397,6 @@ export default function NutritionWorkspace({
           setAnalysisContext(
             buildProductQuestionContext(payload, normalizedResult)
           );
-          if (normalizedResult.saved_scan_id) {
-            setHistoryVersion((current) => current + 1);
-          }
         }
       } else if (isRouteUnavailableStatus(response.status)) {
         const legacyResponse = await fetch(`${API_BASE_URL}/analyze/label`, {
@@ -504,29 +497,32 @@ export default function NutritionWorkspace({
   }
 
   function updateExplanationLevel(event) {
-    setExplanationLevel(event.target.value);
+    onExplanationLevelChange(event.target.value);
   }
 
   return (
-    <>
-      <AccountPanel
-        key={accessToken ? "authenticated" : "guest"}
-        apiBaseUrl={API_BASE_URL}
-        accessToken={accessToken}
-        onAuthChange={onAuthChange}
-        onAuthExpired={onAuthExpired}
-        sessionExpired={sessionExpired}
-        historyVersion={historyVersion}
-        onExpertiseChange={setExplanationLevel}
-        defaultOpen={focusSection === "history" || focusSection === "profile"}
-      />
-      {focusSection === "alternatives" && !analysisResult && (
-        <p className="legacy-api-notice" role="status">
-          Analyze a label with at least two comparable per-100 g or per-100 ml
-          nutrient values. Potential alternatives are drawn only from stored
-          product data and may be unavailable.
+    <main className="nutrition-workspace">
+      <section className="analyzer-hero">
+        <p className="eyebrow">FOOD LABEL INTELLIGENCE</p>
+        <h1>Analyze Any Food Product Label</h1>
+        <p>
+          Upload a clear photo of a packaged-food label to review its
+          ingredients, nutrition facts, allergens, and label declarations.
         </p>
-      )}
+        {accessToken && (healthConditions.length > 0 || allergens.length > 0) && (
+          <p className="personalization-note" role="status">
+            Your saved health and allergy preferences are used for personalized
+            warnings and explanations.
+          </p>
+        )}
+      </section>
+      <button
+        type="button"
+        className="ingredient-explorer-link"
+        onClick={onShowIngredients}
+      >
+        Explore ingredients and sample labels <span aria-hidden="true">→</span>
+      </button>
       <LabelUploadForm
         fileInputRef={fileInputRef}
         selectedImage={selectedImage}
@@ -577,8 +573,6 @@ export default function NutritionWorkspace({
         analysisIngredientsText={analysisIngredientsText}
         analysisMayContainText={analysisMayContainText}
         analysisDeclaredAllergenText={analysisDeclaredAllergenText}
-        saveToHistory={saveToHistory}
-        accessToken={accessToken}
         analysisError={analysisError}
         isAnalyzing={isAnalyzing}
         onSubmit={submitAnalysis}
@@ -589,7 +583,6 @@ export default function NutritionWorkspace({
         onIngredientsTextChange={updateAnalysisIngredientsText}
         onMayContainTextChange={updateAnalysisMayContainText}
         onDeclaredAllergenTextChange={updateAnalysisDeclaredAllergenText}
-        onSaveToHistoryChange={setSaveToHistory}
         onValueChange={updateAnalysisValue}
         onAdditionalNutrientChange={updateAnalysisAdditionalNutrient}
       />
@@ -645,6 +638,6 @@ export default function NutritionWorkspace({
           )}
         </>
       )}
-    </>
+    </main>
   );
 }

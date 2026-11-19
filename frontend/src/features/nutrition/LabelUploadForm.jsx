@@ -20,7 +20,7 @@ export default function LabelUploadForm({
             <p className="step-label">STEP 1 · UPLOAD</p>
             <h2>Choose a label image</h2>
           </div>
-          <span className="optional-label">JPEG · PNG · WebP</span>
+          <span className="optional-label">JPG · JPEG · PNG · WEBP</span>
         </div>
 
         <input
@@ -52,16 +52,15 @@ export default function LabelUploadForm({
             </div>
           </div>
         ) : (
-          <button
+          <div
             className="dropzone"
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
+            role="region"
             onDragOver={(event) => event.preventDefault()}
             onDrop={(event) => {
               event.preventDefault();
               onSelectImage(event.dataTransfer.files?.[0]);
             }}
-            aria-label="Choose or drop a label image"
+            aria-label="Drop a food label photo"
           >
             <span className="upload-icon" aria-hidden="true">
               <svg viewBox="0 0 48 48" fill="none">
@@ -80,10 +79,17 @@ export default function LabelUploadForm({
                 />
               </svg>
             </span>
-            <strong>Drop your label image here</strong>
-            <span>or choose a file from your device</span>
-            <small>JPEG, PNG or WebP · Up to 10 MiB</small>
-          </button>
+            <strong>Drag &amp; Drop Food Label Photo Here</strong>
+            <span>Supported formats: JPG, JPEG, PNG, WEBP</span>
+            <small>Maximum file size: 15 MB</small>
+            <Button
+              type="button"
+              className="browse-files-button"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              Browse Files
+            </Button>
+          </div>
         )}
 
         {uploadError && (
@@ -104,7 +110,7 @@ export default function LabelUploadForm({
             </>
           ) : (
             <>
-              Extract label details
+              Analyze Food Label
               <span aria-hidden="true">→</span>
             </>
           )}

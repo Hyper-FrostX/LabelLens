@@ -44,7 +44,7 @@ def test_allergen_catalog_preserves_alias_verification_status(db_session):
         if record.get("__allergen_catalog__")
     ]
 
-    assert len(allergen_records) == 9
+    assert len(allergen_records) == 10
     assert all(
         record["verification_status"] == "REVIEW_REQUIRED"
         for record in allergen_records

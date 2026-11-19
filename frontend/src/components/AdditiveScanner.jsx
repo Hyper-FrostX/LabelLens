@@ -9,7 +9,7 @@ import {
   validateIngredientText,
 } from "../features/nutrition/ingredientReview.js";
 
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
 const ACCEPTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 const PRESETS = [
@@ -92,7 +92,7 @@ export default function AdditiveScanner({ apiBaseUrl }) {
       return;
     }
     if (file.size > MAX_IMAGE_BYTES) {
-      setError("Image must be 10 MiB or smaller.");
+      setError("Image must be 15 MB or smaller.");
       return;
     }
 

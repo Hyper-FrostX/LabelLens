@@ -1,5 +1,6 @@
 ALLERGEN_ALIASES = {
     "Gluten": ("gluten", "wheat", "barley", "rye", "malt"),
+    "Wheat": ("wheat", "wheat flour", "wheat starch", "semolina", "durum"),
     "Dairy": (
         "dairy",
         "milk",

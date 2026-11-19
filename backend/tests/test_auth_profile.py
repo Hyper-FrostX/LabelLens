@@ -246,6 +246,50 @@ def test_profile_is_created_read_and_updated_with_catalog_and_custom_values(
     assert persisted.json() == updated.json()
 
 
+def test_profile_persists_onboarding_conditions_and_wheat_allergy(auth_client):
+    assert _register(auth_client).status_code == 201
+    headers = {"Authorization": f"Bearer {_login(auth_client)}"}
+    conditions = [
+        "Hypertension",
+        "Diabetes",
+        "High Cholesterol",
+        "Heart Health Concerns",
+        "Kidney Health Concerns",
+        "Obesity / Weight Management",
+        "Thyroid-related Dietary Concerns",
+    ]
+    allergens = [
+        "Dairy",
+        "Peanuts",
+        "Tree nuts",
+        "Soy",
+        "Wheat",
+        "Gluten",
+        "Eggs",
+        "Fish",
+        "Shellfish",
+        "Sesame",
+    ]
+
+    updated = auth_client.put(
+        "/profile",
+        headers=headers,
+        json={
+            "name": "Test Person",
+            "expertise_level": "beginner",
+            "health_conditions": conditions,
+            "allergens": allergens,
+            "custom_allergens": [],
+        },
+    )
+
+    assert updated.status_code == 200
+    assert updated.json()["health_conditions"] == conditions
+    assert updated.json()["allergens"] == allergens
+    persisted = auth_client.get("/profile", headers=headers)
+    assert persisted.json()["allergens"] == allergens
+
+
 def test_profile_updates_are_scoped_to_authenticated_user(auth_client):
     first_user = _register(auth_client)
     first_user_id = first_user.json()["id"]

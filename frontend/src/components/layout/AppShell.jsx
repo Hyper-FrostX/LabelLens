@@ -1,100 +1,69 @@
-import Icon from "../ui/Icon";
-
-const navigationGroups = [
-  {
-    label: "Workspace",
-    items: [
-      { id: "scan", label: "Scan Food", icon: "scan" },
-    ],
-  },
-  {
-    label: "Explore",
-    items: [
-      { id: "ingredients", label: "Ingredient Explorer", icon: "ingredients" },
-      { id: "knowledge", label: "Knowledge Base", icon: "book" },
-    ],
-  },
-  {
-    label: "Recommendations",
-    items: [
-      { id: "alternatives", label: "Stored-product Alternatives", icon: "alternatives" },
-    ],
-  },
-  {
-    label: "Your space",
-    items: [
-      { id: "history", label: "Scan History", icon: "history" },
-      { id: "profile", label: "My Health Profile", icon: "profile" },
-    ],
-  },
-];
-
 export default function AppShell({
   activeSection,
   onNavigate,
-  title,
-  eyebrow,
-  description,
+  headerAction,
+  onboarding = false,
   children,
 }) {
   return (
     <div className="app-shell">
-      <aside className="app-sidebar">
-        <a className="brand" href="/" aria-label="Label Lens home">
+      <header className="site-header">
+        <a
+          className="brand"
+          href="/"
+          aria-label="LabelLens home"
+          onClick={(event) => {
+            event.preventDefault();
+            onNavigate("analyzer");
+          }}
+        >
           <span className="brand-mark" aria-hidden="true">LL</span>
-          <span className="brand-name">LabelLens</span>
+          <span>LabelLens</span>
         </a>
-        <p className="brand-caption">FOOD INTELLIGENCE</p>
-
-        <nav className="primary-nav" aria-label="Main navigation">
-          {navigationGroups.map((group) => (
-            <div className="nav-group" key={group.label}>
-              <p className="nav-group-label">{group.label}</p>
-              <div className="nav-group-items">
-                {group.items.map((item) => (
-                  <button
-                    className={`nav-item ${activeSection === item.id ? "active" : ""}`}
-                    type="button"
-                    key={item.id}
-                    aria-current={activeSection === item.id ? "page" : undefined}
-                    onClick={() => onNavigate(item.id)}
-                  >
-                    <Icon name={item.icon} size={18} />
-                    <span>{item.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
-        </nav>
-
-        <div className="sidebar-note">
-          <span className="sidebar-note-mark" aria-hidden="true" />
-          <p>Evidence-led insights. Always verify the package.</p>
+        {!onboarding && (
+          <nav className="header-nav" aria-label="Main navigation">
+            <button
+              type="button"
+              className={activeSection === "analyzer" ? "active" : ""}
+              aria-current={activeSection === "analyzer" ? "page" : undefined}
+              onClick={() => onNavigate("analyzer")}
+            >
+              Label Analyzer
+            </button>
+            <button
+              type="button"
+              className={activeSection === "preferences" ? "active" : ""}
+              aria-current={activeSection === "preferences" ? "page" : undefined}
+              onClick={() => onNavigate("preferences")}
+            >
+              Health Preferences
+            </button>
+            <button
+              type="button"
+              className={activeSection === "fssai" ? "active" : ""}
+              aria-current={activeSection === "fssai" ? "page" : undefined}
+              onClick={() => onNavigate("fssai")}
+            >
+              FSSAI
+            </button>
+          </nav>
+        )}
+        <div className="header-right">
+          <span className="engine-status">
+            <span aria-hidden="true" />
+            AI Engine Ready
+          </span>
+          {headerAction}
         </div>
-      </aside>
-
-      <div className="main-stage">
-        <header className="topbar">
-          <p className="breadcrumb">
-            LABEL LENS <span aria-hidden="true">/</span> {title}
-          </p>
-          <span className="workspace-label">Food label workspace</span>
-        </header>
-
-        <main className="main-content">
-          <section className="page-intro">
-            <p className="eyebrow">{eyebrow}</p>
-            <h1>{title}</h1>
-            <p className="intro-copy">{description}</p>
-          </section>
-          {children}
-          <footer className="page-footer">
-            <span>LabelLens</span>
-            <span>Informational insights, not medical advice.</span>
-          </footer>
-        </main>
-      </div>
+      </header>
+      <div className="main-stage">{children}</div>
+      <footer className="page-footer">
+        <a className="footer-brand" href="/" onClick={(event) => {
+          event.preventDefault();
+          onNavigate("analyzer");
+        }}>LabelLens</a>
+        <span>Food-label insights to help you make informed choices.</span>
+      </footer>
     </div>
   );
 }

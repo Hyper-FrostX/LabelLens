@@ -67,7 +67,7 @@ from app.services.nutrition import analyze_nutrition
 from app.services.product_analysis import analyze_product, answer_product_question
 from app.services.product_assistant import ask_product_question
 
-MAX_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024
+MAX_IMAGE_UPLOAD_BYTES = 15 * 1024 * 1024
 MAX_INGREDIENT_TEXT_LENGTH = 10_000
 MAX_INGREDIENT_LIST_ITEMS = 500
 request_rate_limiter = RequestRateLimiter(load_rate_limit_policies())
@@ -473,7 +473,7 @@ def read_scan_history_item(
     "/extract/label",
     description=(
         "Extract label text, candidate nutrition fields, and food suggestions "
-        "from one local image upload. Maximum upload size is 10 MiB."
+        "from one local image upload. Maximum upload size is 15 MB."
     ),
 )
 async def extract_label_endpoint(
@@ -486,7 +486,7 @@ async def extract_label_endpoint(
     if len(image_bytes) > MAX_IMAGE_UPLOAD_BYTES:
         raise HTTPException(
             status_code=413,
-            detail="Image exceeds the 10 MiB upload limit.",
+            detail="Image exceeds the 15 MB upload limit.",
         )
 
     try:

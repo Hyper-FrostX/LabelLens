@@ -70,6 +70,7 @@ def _create_profile(
     ("allergen", "ingredient"),
     [
         ("Gluten", "wheat flour"),
+        ("Wheat", "wheat flour"),
         ("Dairy", "milk solids"),
         ("Soy", "soya oil"),
         ("Tree nuts", "almond flour"),
@@ -286,6 +287,19 @@ def test_missing_ingredient_and_allergen_text_remains_unknown(personalized_clien
         ),
         ("IBS", {"ingredients_text": "oats"}, None),
         ("Gout", {"ingredients_text": "oats"}, None),
+        ("High Cholesterol", {"ingredients_text": "oats"}, None),
+        ("Heart Health Concerns", {"ingredients_text": "oats"}, None),
+        ("Kidney Health Concerns", {"ingredients_text": "oats"}, None),
+        (
+            "Obesity / Weight Management",
+            {"ingredients_text": "oats"},
+            None,
+        ),
+        (
+            "Thyroid-related Dietary Concerns",
+            {"ingredients_text": "oats"},
+            None,
+        ),
     ],
 )
 def test_supported_condition_rules_use_only_configured_label_evidence(
@@ -308,7 +322,11 @@ def test_supported_condition_rules_use_only_configured_label_evidence(
     if expected_finding_type is None:
         assert assessment["findings"] == []
         assert assessment["status"] == "unknown"
-        assert any("No condition-specific" in value for value in assessment["missing_information"])
+        if condition in {"IBS", "Gout"}:
+            assert any(
+                "No condition-specific" in value
+                for value in assessment["missing_information"]
+            )
     else:
         assert assessment["findings"]
         assert assessment["findings"][0]["finding_type"] == expected_finding_type

@@ -76,7 +76,7 @@ exact origins for deployment and `CORS_ALLOW_CREDENTIALS` to `true` or
 the allowlist limited to origins you control.
 
 The extractor continues to validate the decoded image format and dimensions
-and limits uploaded files to 10 MiB. OCR uses the local Tesseract executable.
+and limits uploaded files to 15 MB. OCR uses the local Tesseract executable.
 When Gemini Vision is enabled and configured, the image may also be sent to
 Google's Gemini API for candidate extraction; keep that behavior and its
 credentials server-side.
@@ -95,7 +95,7 @@ the executable's full path. The service also checks the standard Windows
 installation location. An invalid configured path is reported as an actionable
 OCR service error; it does not substitute sample or mocked text.
 
-Image uploads are limited to 10 MiB and 25 megapixels. OCR is local; uploaded
+Image uploads are limited to 15 MB and 25 megapixels. OCR is local; uploaded
 images are not sent to an external OCR service. OCR word confidence is not
 reported as nutrition correctness or overall extraction certainty. Extracted
 fields are flagged for user review. Preprocessing applies EXIF orientation,

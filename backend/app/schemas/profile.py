@@ -11,6 +11,11 @@ from app.models.enums import ExpertiseLevel
 class HealthConditionChoice(str, Enum):
     DIABETES = "Diabetes"
     HYPERTENSION = "Hypertension"
+    HIGH_CHOLESTEROL = "High Cholesterol"
+    HEART_HEALTH_CONCERNS = "Heart Health Concerns"
+    KIDNEY_HEALTH_CONCERNS = "Kidney Health Concerns"
+    OBESITY_WEIGHT_MANAGEMENT = "Obesity / Weight Management"
+    THYROID_DIETARY_CONCERNS = "Thyroid-related Dietary Concerns"
     CELIAC_DISEASE = "Celiac disease"
     PKU = "PKU"
     IBS = "IBS"
@@ -22,6 +27,7 @@ class HealthConditionChoice(str, Enum):
 class AllergenChoice(str, Enum):
     GLUTEN = "Gluten"
     DAIRY = "Dairy"
+    WHEAT = "Wheat"
     SOY = "Soy"
     TREE_NUTS = "Tree nuts"
     PEANUTS = "Peanuts"
@@ -74,8 +80,8 @@ def _normalize_choices(
 class HealthProfileUpdate(BaseModel):
     name: str = Field(min_length=1, max_length=160)
     expertise_level: ExpertiseLevel
-    health_conditions: list[HealthConditionChoice] = Field(max_length=8)
-    allergens: list[AllergenChoice] = Field(max_length=9)
+    health_conditions: list[HealthConditionChoice] = Field(max_length=15)
+    allergens: list[AllergenChoice] = Field(max_length=10)
     custom_allergens: list[str] = Field(max_length=20)
     dietary_preferences: list[DietaryPreference] = Field(
         default_factory=list,

@@ -236,9 +236,11 @@ class IngredientKnowledgeRepository:
                 existing = allergen_aliases_by_key.get(normalized)
                 if existing is not None:
                     if existing.id != allergen.id:
-                        raise ValueError(
-                            f"Allergen alias {alias_text!r} maps to multiple catalog entries."
-                        )
+                        # Some aliases legitimately belong to more than one
+                        # allergen category (for example Wheat is associated
+                        # with Gluten). Keep the existing alias owner and keep
+                        # the canonical category available through its aliases.
+                        continue
                     existing.verification_status = record.get(
                         "verification_status",
                         "REVIEW_REQUIRED",
